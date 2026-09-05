@@ -2,6 +2,7 @@
 
 #include <string>
 #include <filesystem>
+#include <vector>
 
 #define LK_HEADER_SIZE 64 // SHA256 hash char length
 
@@ -37,18 +38,27 @@ public:
         bool is_portable = false
     );
 
-    void change_locker_dir(fs::path dir, bool same_ok = false, bool is_storage_relative = true);
-    const fs::path get_locker_dir(bool is_full = true);
-
-private:
     int salt_size_, token_size_;
     fs::path token_file_;
     fs::path locker_file_;
     fs::path default_locker_file_;
     fs::path current_locker_file_; // Stores a path to currently used locker
 
-    void sync_locker();
+    void change_locker_dir(fs::path dir, bool same_ok = false, bool is_storage_relative = true);
+    void copy_locker(fs::path dest);
+    void copy_token(fs::path dest);
+    const fs::path get_locker_dir(bool is_full = true);
+
     void append_line_to_locker(std::string header, std::string content);
     void remove_line_from_locker(std::string header);
     std::string get_line_from_locker(std::string header);
+    std::vector<std::string> get_all_lines_from_locker();
+
+    std::string get_locker_salt();
+    std::string get_token();
+    std::string generate_token();
+    bool token_exists();
+
+private:
+    void sync_locker();
 };

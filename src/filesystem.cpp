@@ -1,7 +1,9 @@
 #include "filesystem.hpp"
 #include "common.hpp"
 
+#include <csignal>
 #include <iostream>
+#include <random>
 #include <unordered_map>
 #include <fstream>
 
@@ -14,7 +16,6 @@ static fs::path get_home()
 #else
     home = getenv("HOME"); 
 #endif
-
     return fs::path(home);
 }
 
@@ -54,6 +55,65 @@ static fs::path expand_user(fs::path in)
 
     return in;
 }
+
+static std::string urandom(unsigned int nbytes) 
+{
+    std::random_device random;
+    auto buff = std::string(nbytes, '\0');
+
+    for (unsigned int i = 0; i < nbytes; i++) {
+        buff[i] = static_cast<char>(random());
+    }
+
+    return buff;
+}
+
+namespace salt {
+    bool exists(int salt_size, fs::path dir) 
+    { 
+        auto f = std::ifstream(dir, std::ios::binary);
+        auto salt = std::string(salt_size, '\0');
+
+        if (!f)
+            return false;
+
+        f.read(salt.data(), salt.size());
+        
+        if (f.gcount() != salt_size)
+            return false;
+
+        return true;
+    }
+
+    std::string generate(int salt_size, fs::path dir) 
+    {
+        auto salt = urandom(salt_size);
+        auto f = std::ofstream(dir, std::ios::binary);
+
+        f << salt;
+
+        fs::permissions(dir, 
+            fs::perms::owner_read | fs::perms::owner_write);
+
+        return salt;
+    }
+
+    std::string get(int salt_size, fs::path dir, bool auto_gen = true) 
+    {
+        if (!salt::exists(salt_size, dir)) {
+            if (auto_gen)
+                return salt::generate(salt_size, dir);
+            return "";
+        }
+
+        auto f = std::ifstream(dir, std::ios::binary);
+        auto salt = std::string(salt_size, '\0');   
+        
+        f.read(salt.data(), salt.size());
+
+        return salt;
+    }
+} // namespace salt
 
 CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable) 
 {
@@ -182,16 +242,81 @@ std::string FileSystem::get_line_from_locker(std::string header)
     std::string line;
 
     while (std::getline(f, line)) {
-        std::string line_header = line.substr(0, LK_HEADER_SIZE);
-        if (line_header == header)
+        if (line.compare(0, LK_HEADER_SIZE, header) == 0)
             return line; 
     }
 
     return "";
 }
 
+std::vector<std::string> FileSystem::get_all_lines_from_locker() 
+{
+    auto lines = std::vector<std::string>();
+    auto f = std::ifstream(locker_file_, std::ios::binary);
+
+    f.seekg(salt_size_, std::ios::beg);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        lines.push_back(line.substr(LK_HEADER_SIZE));
+    }
+    
+    return lines;
+}
+
 void FileSystem::remove_line_from_locker(std::string header) 
 {
     auto tmp_file = fs::path(locker_file_.string() + ".tmp");
-    // TODO ignore SIGINT here
+    
+    auto tmpf = std::ofstream(tmp_file, std::ios::binary);
+    auto originalf = std::ifstream(locker_file_, std::ios::binary);
+
+    auto salt = std::string(salt_size_, '\0');
+    originalf.read(salt.data(), salt.size());
+
+    std::string line;
+
+    while (std::getline(originalf, line)) {
+        if (line.compare(0, LK_HEADER_SIZE, header) != 0)
+            tmpf << line << '\n';
+    }
+
+    originalf.close();
+
+    auto previous = std::signal(SIGINT, SIG_IGN);
+    fs::rename(tmp_file, locker_file_);
+    std::signal(SIGINT, previous);
 }
+
+void FileSystem::copy_locker(fs::path dest) 
+{
+    fs::copy(locker_file_, fs::absolute(expand_user(dest)));
+}
+
+void FileSystem::copy_token(fs::path dest) 
+{
+    fs::copy(token_file_, fs::absolute(expand_user(dest)));
+}
+
+std::string FileSystem::get_locker_salt() 
+{
+    return salt::get(salt_size_, locker_file_);
+}
+
+std::string FileSystem::get_token() 
+{
+    return salt::get(token_size_, token_file_, false);
+}
+
+std::string FileSystem::generate_token()
+{
+    if (!fs::exists(token_file_) || fs::file_size(token_file_) == 0)
+        return salt::generate(token_size_, token_file_);
+    throw "Token allready exists!";
+}
+
+bool FileSystem::token_exists() 
+{
+    return salt::exists(token_size_, token_file_);
+}
+
