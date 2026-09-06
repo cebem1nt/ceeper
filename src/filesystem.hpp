@@ -18,7 +18,8 @@
 
 namespace fs = std::filesystem;
 
-class CrossPlatform {
+class CrossPlatform 
+{
 public:
     fs::path user_dir_;
     fs::path data_dir_;
@@ -29,7 +30,9 @@ public:
     CrossPlatform(fs::path current_dir, bool is_portable);
 };
 
-class FileSystem : public CrossPlatform {
+class FileSystem 
+    : public CrossPlatform 
+{
 public:
     FileSystem(
         int salt_size, 
@@ -42,7 +45,7 @@ public:
     fs::path token_file_;
     fs::path locker_file_;
     fs::path default_locker_file_;
-    fs::path current_locker_file_; // Stores a path to currently used locker
+    fs::path current_locker_file_; // A file with a path to locker_file_
 
     void change_locker_dir(fs::path dir, bool same_ok = false, bool is_storage_relative = true);
     void copy_locker(fs::path dest);

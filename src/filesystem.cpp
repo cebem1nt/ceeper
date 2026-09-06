@@ -3,7 +3,6 @@
 
 #include <csignal>
 #include <iostream>
-#include <random>
 #include <unordered_map>
 #include <fstream>
 
@@ -54,18 +53,6 @@ static fs::path expand_user(fs::path in)
         return home / in_str.substr(prefix.size());
 
     return in;
-}
-
-static std::string urandom(unsigned int nbytes) 
-{
-    std::random_device random;
-    auto buff = std::string(nbytes, '\0');
-
-    for (unsigned int i = 0; i < nbytes; i++) {
-        buff[i] = static_cast<char>(random());
-    }
-
-    return buff;
 }
 
 namespace salt {
