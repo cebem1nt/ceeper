@@ -1,21 +1,24 @@
 #include "cryptography.hpp"
-#include "common.hpp"
 
+#include <iomanip>
+#include <iostream>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
+#include <openssl/sha.h>
 
+#include <algorithm>
 #include <vector>
 
-static crypt::key derive_key(
+static crypt::DerivedKey derive_key(
     const std::string& passphrase,
     const std::string& salt,
     const std::string& token,
     int iterations
 )
 {
-    crypt::key derived_key;
+    std::array<uchar, DERIVE_KEY_LENGTH> derived_key;
     std::string combined_salt = token + salt;    
     
     PKCS5_PBKDF2_HMAC(
@@ -41,7 +44,7 @@ static uint base_64url_decode_calc_length(const std::string& in)
     else if (in.ends_with("="))
         padding = 1;
 
-	return (in.length()*3)/4 - padding;
+    return (in.length()*3)/4 - padding;
 }
 
 // Accepts padded input only, as base64url_encode returns
@@ -58,18 +61,17 @@ static std::vector<uchar> base64url_decode(std::string in)
     BIO* bio;
     BIO* b64;
     
-    uint actual_len, calculated_len;
-    calculated_len = base_64url_decode_calc_length(in);
+    uint calculated_len = base_64url_decode_calc_length(in);
 
     bio = BIO_new_mem_buf(in.data(), -1);
-	b64 = BIO_new(BIO_f_base64());
-	bio = BIO_push(b64, bio);
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
 
-	BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Do not use newlines to flush buffer
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Do not use newlines to flush buffer
     
     auto out = std::vector<uchar>(calculated_len);
 
-    actual_len = BIO_read(bio, out.data(), out.size());
+    BIO_read(bio, out.data(), out.size());
     BIO_free_all(bio);
 
     return out;
@@ -79,19 +81,17 @@ static std::vector<uchar> base64url_decode(std::string in)
 // https://gist.github.com/barrysteyn/7308212
 static std::string base64url_encode(std::vector<uchar> in) 
 {
-    BIO* bio;
-    BIO* b64;
+    BIO* bio = BIO_new(BIO_s_mem());
+    BIO* b64 = BIO_new(BIO_f_base64());
 
-    BUF_MEM* buffer_ptr;
-
-    b64 = BIO_new(BIO_f_base64());
-	bio = BIO_new(BIO_s_mem());
+    BUF_MEM* buffer_ptr = nullptr;
 	bio = BIO_push(b64, bio);
-	BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
+
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
 
     BIO_write(bio, in.data(), in.size());
     BIO_flush(bio);
-    BIO_get_mem_ptr(bio, buffer_ptr);
+    BIO_get_mem_ptr(bio, &buffer_ptr);
 
     auto out = std::string(buffer_ptr->data, buffer_ptr->length);
     BIO_free_all(bio);    
@@ -107,16 +107,12 @@ static std::string base64url_encode(std::vector<uchar> in)
     return out;
 }
 
-AESBackend::AESBackend(int iterations)
-{
-    iterations_ = iterations;
-}
-
 void AESBackend::init_cipher(const std::string& passphrase, 
                              const std::string& salt, 
                              const std::string& token) 
 {
     key_ = derive_key(passphrase, salt, token, iterations_);
+    key_set_ = true;
 }
 
 std::string AESBackend::encrypt(const std::string& data) 
@@ -126,6 +122,9 @@ std::string AESBackend::encrypt(const std::string& data)
 
     if (!ctx)
         FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
+
+    if (!key_set_)
+        throw "Key was not initialized!";
 
     const auto* input = RC<const uchar*>(data.data());
     
@@ -188,7 +187,6 @@ std::string AESBackend::decrypt(const std::string& data)
 
         EVP_CIPHER_CTX_free(ctx);
 
-
     return std::string(
         RC<char*>(plaintext.data()),
         update_len + final_len
@@ -198,5 +196,61 @@ std::string AESBackend::decrypt(const std::string& data)
 
 CryptographySystem::CryptographySystem(int iterations, std::string backend) 
 {
+    std::transform(backend.begin(), backend.end(), backend.data(), ::tolower);
 
+    if (backend == "aes")
+        backend_ = std::make_unique<AESBackend>(iterations);   
+    // else
+        // backend_ = std::make_unique<FernetBackend>(iterations);
+}
+
+void CryptographySystem::init_cipher(
+    const std::string& passphrase, const std::string& salt, const std::string& token) 
+{
+    return backend_->init_cipher(passphrase, salt, token);
+}
+
+bool CryptographySystem::cipher_initialized() 
+{
+    return backend_->cipher_initialized();
+}
+
+
+std::string CryptographySystem::encrypt(const std::string& data) 
+{
+    return backend_->encrypt(data);
+}
+
+std::string CryptographySystem::decrypt(const std::string& data) 
+{
+    return backend_->decrypt(data);
+}
+
+std::string CryptographySystem::hash(const std::string& data)
+{
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    uchar       hash[EVP_MAX_MD_SIZE];
+    uint        hash_length = 0;
+
+    if (!ctx)
+        FATAL("CryptographySystem::hash EVP_CIPHER_CTX_new failed");
+
+    const bool success = 
+        EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) == 1 &&
+        EVP_DigestUpdate(ctx, data.data(), data.size()) == 1 &&
+        EVP_DigestFinal_ex(ctx, hash, &hash_length) == 1;
+
+    EVP_MD_CTX_free(ctx);
+
+    if (!success)
+        FATAL("CryptographySystem::hash failed to compute sha256");
+
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+
+    for (uint i = 0; i < hash_length; i++) {
+        out << std::setw(2) << SC<uint>(hash[i]);
+    }
+
+    return out.str();
 }

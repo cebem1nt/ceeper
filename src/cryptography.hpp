@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.hpp"
+
 #include <memory>
 #include <string>
 #include <array>
@@ -8,15 +10,17 @@
 #define AES_IV_LENGTH     16 // AES initial vector
 
 namespace crypt {
-    // 0 - Tag, 1 - Login, 2 - Password
-    using triplet = std::array<std::string, 3>;
-    using key = std::array<unsigned char, DERIVE_KEY_LENGTH>;
+    using Triplet = std::array<std::string, 3>; // 0 - Tag, 1 - Login, 2 - Password
+    using DerivedKey = std::array<uchar, DERIVE_KEY_LENGTH>;
 };
 
 
 class ACryptographyBackend 
 {
 public:
+    explicit ACryptographyBackend(int iterations)
+        : iterations_(iterations) {}
+
     virtual void init_cipher(
         const std::string& passphrase, 
         const std::string& salt, 
@@ -25,12 +29,23 @@ public:
 
     virtual std::string encrypt(const std::string& data) = 0;
     virtual std::string decrypt(const std::string& data) = 0;
-    virtual bool cipher_initialized() = 0;
+
+    virtual bool cipher_initialized() {
+        return key_set_;
+    }
+
+protected:
+    int iterations_;
+    bool key_set_ = false;
+    crypt::DerivedKey key_;
 };
 
-class AESBackend : public ACryptographyBackend 
+class AESBackend 
+    : public ACryptographyBackend 
 {
-    AESBackend(int iterations);
+public:
+    AESBackend(int iterations):
+        ACryptographyBackend(iterations) {}
 
     void init_cipher(
         const std::string& passphrase, 
@@ -40,13 +55,10 @@ class AESBackend : public ACryptographyBackend
 
     std::string encrypt(const std::string& data) override;
     std::string decrypt(const std::string& data) override;
-
-private:
-    int iterations_;
-    crypt::key key_;
 };
 
-class FernetBackend : ACryptographyBackend 
+class FernetBackend 
+    : ACryptographyBackend 
 {
 };
 
@@ -61,12 +73,12 @@ public:
         const std::string& token
     );
     
-    std::string encrypt(std::string data);
-    std::string decrypt(std::string data);
-    std::string hash(std::string data);    
+    std::string encrypt(const std::string& data);
+    std::string decrypt(const std::string& data);
+    std::string hash(const std::string& data); // SHA256
     
-    std::string encrypt_triplet(crypt::triplet t);
-    crypt::triplet decrypt_triplet(std::string data);
+    std::string encrypt_triplet(crypt::Triplet t);
+    crypt::Triplet decrypt_triplet(std::string data);
     
     bool cipher_initialized();
 
