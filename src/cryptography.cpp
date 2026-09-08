@@ -1,17 +1,20 @@
 #include "cryptography.hpp"
 
-#include <iomanip>
-#include <iostream>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/sha.h>
 
+#include <format>
+#include <iomanip>
 #include <algorithm>
+#include <regex>
 #include <vector>
 
-static crypt::DerivedKey derive_key(
+using namespace crypt;
+
+static DerivedKey derive_key(
     const std::string& passphrase,
     const std::string& salt,
     const std::string& token,
@@ -87,7 +90,7 @@ static std::string base64url_encode(std::vector<uchar> in)
     BUF_MEM* buffer_ptr = nullptr;
 	bio = BIO_push(b64, bio);
 
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Ignore newlines - write everything in one line
 
     BIO_write(bio, in.data(), in.size());
     BIO_flush(bio);
@@ -117,14 +120,14 @@ void AESBackend::init_cipher(const std::string& passphrase,
 
 std::string AESBackend::encrypt(const std::string& data) 
 {
+    if (!key_set_)
+        throw "Key was not initialized!";
+
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
     EVP_CIPHER_CTX*   ctx = EVP_CIPHER_CTX_new();
 
     if (!ctx)
         FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
-
-    if (!key_set_)
-        throw "Key was not initialized!";
 
     const auto* input = RC<const uchar*>(data.data());
     
@@ -133,11 +136,7 @@ std::string AESBackend::encrypt(const std::string& data)
     );
     
     int update_len = 0, final_len = 0, ciphertext_len = 0;
-
-    std::array<uchar, AES_IV_LENGTH> iv;
-
-    if (RAND_bytes(iv.data(), AES_IV_LENGTH) != 1)
-        FATAL("AESBackend: RAND_bytes failed");
+    auto iv = urandom(AES_IV_LENGTH);
 
     if (EVP_EncryptInit(ctx, cipher, key_.data(), iv.data()) != 1)
         FATAL("AESBackend: EVP_EncryptInit failed");   
@@ -160,11 +159,17 @@ std::string AESBackend::encrypt(const std::string& data)
 
 std::string AESBackend::decrypt(const std::string& data) 
 {
-    const auto encryped = base64url_decode(data);
+    // TODO different classes for exceptions
+    if (!key_set_)
+        throw "Key was not initialized!";
     
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
     EVP_CIPHER_CTX*   ctx = EVP_CIPHER_CTX_new();
-    
+
+    if (!ctx)
+        FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
+
+    const auto encryped = base64url_decode(data);
     const uchar* iv = encryped.data();
     const uchar* ciphertext = encryped.data() + AES_IV_LENGTH;
     int   ciphertext_len = encryped.size() - AES_IV_LENGTH;
@@ -172,9 +177,6 @@ std::string AESBackend::decrypt(const std::string& data)
 
     auto plaintext = std::vector<uchar>(
             encryped.size() + EVP_CIPHER_block_size(cipher));
-    
-    if (!ctx)
-        FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
 
     if (EVP_DecryptInit(ctx, cipher, key_.data(), iv) != 1)
         FATAL("AESBackend: EVP_DecryptInit_ex failed");
@@ -236,9 +238,9 @@ std::string CryptographySystem::hash(const std::string& data)
         FATAL("CryptographySystem::hash EVP_CIPHER_CTX_new failed");
 
     const bool success = 
-        EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) == 1 &&
+        EVP_DigestInit(ctx, EVP_sha256()) == 1 &&
         EVP_DigestUpdate(ctx, data.data(), data.size()) == 1 &&
-        EVP_DigestFinal_ex(ctx, hash, &hash_length) == 1;
+        EVP_DigestFinal(ctx, hash, &hash_length) == 1;
 
     EVP_MD_CTX_free(ctx);
 
@@ -253,4 +255,54 @@ std::string CryptographySystem::hash(const std::string& data)
     }
 
     return out.str();
+}
+
+std::string CryptographySystem::encrypt_triplet(Triplet t) 
+{
+    auto escape_brackets = [](std::string in) {
+        in = std::regex_replace(in, std::regex(R"(\[)"), R"(\[)");
+        in = std::regex_replace(in, std::regex(R"(\])"), R"(\])");
+        return in;
+    };
+
+    auto [tag, login, password] = t;
+    
+    tag = escape_brackets(tag);
+    login = escape_brackets(login);
+    password = escape_brackets(password);
+ 
+    auto formatted = std::format("[ {} ] [ {} ] [ {} ]",
+        tag, login, password);
+
+    return encrypt(formatted);
+}
+
+Triplet CryptographySystem::decrypt_triplet(std::string data) 
+{
+    auto restore_brackets = [](std::string in) {
+        in = std::regex_replace(in, std::regex(R"(\\\[)"), "[");
+        in = std::regex_replace(in, std::regex(R"(\\\])"), "]");
+        return in;
+    };
+
+    const auto decrypted = decrypt(data);
+    const std::regex pattern(R"(\[\s*((?:\\.|[^\]])*?)\s*\])");
+
+    std::sregex_iterator it(decrypted.begin(), decrypted.end(), pattern);
+    std::sregex_iterator end;
+
+    Triplet out;
+    std::size_t count = 0;
+
+    for (; it != end; it++) {
+        if (count == out.size())
+            throw "Malformed .lk file!";
+
+        out[count++] = restore_brackets((*it)[1].str());
+    }
+
+    if (count != out.size())
+        throw "Malformed .lk file!";
+    
+    return out;
 }

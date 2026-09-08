@@ -2,14 +2,22 @@
 
 #include <random>
 
-std::string urandom(unsigned int nbytes) 
+std::vector<uchar> urandom(uint nbytes) 
 {
+    // Might not be very good
+    std::vector<uchar> out(nbytes);
     std::random_device random;
-    auto buff = std::string(nbytes, '\0');
 
     for (unsigned int i = 0; i < nbytes; i++) {
-        buff[i] = static_cast<char>(random());
+        out[i] = SC<uchar>(random());
     }
 
-    return buff;
+    return out;
 }
+
+std::string surandom(uint nbytes)
+{
+    auto randbytes = urandom(nbytes);
+    return std::string(randbytes.begin(), randbytes.end());
+}
+

@@ -32,4 +32,11 @@ int main(int argc, char** argv)
 
     auto decrypted = cs.decrypt(encrypted);
     std::cout << decrypted << '\n';
+
+    encrypted = cs.encrypt_triplet({"[A]", "[ B ]", "C"});
+    std::cout << encrypted << '\n';
+
+    auto t = cs.decrypt_triplet(encrypted);
+    std::cout << t[0] << t[1] << t[2] << '\n';
+
 }

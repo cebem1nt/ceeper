@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <fstream>
 
+namespace fs = std::filesystem;
+
 static fs::path get_home() 
 {
     std::string home;
@@ -74,7 +76,7 @@ namespace salt {
 
     std::string generate(int salt_size, fs::path dir) 
     {
-        auto salt = urandom(salt_size);
+        auto salt = surandom(salt_size);
         auto f = std::ofstream(dir, std::ios::binary);
 
         f << salt;
@@ -141,7 +143,7 @@ CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable)
 
         
 FileSystem::FileSystem(int salt_size, int token_size, 
-                       char* program, bool is_portable)
+                       const char* program, bool is_portable)
     : CrossPlatform(fs::path(program).parent_path(), is_portable)
 {
     salt_size_ = salt_size;

@@ -14,12 +14,13 @@ namespace crypt {
     using DerivedKey = std::array<uchar, DERIVE_KEY_LENGTH>;
 };
 
-
 class ACryptographyBackend 
 {
 public:
     explicit ACryptographyBackend(int iterations)
         : iterations_(iterations) {}
+
+    virtual ~ACryptographyBackend() = default;    
 
     virtual void init_cipher(
         const std::string& passphrase, 

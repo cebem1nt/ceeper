@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #define FATAL(...) do {                 \
     std::fprintf(stderr, __VA_ARGS__);  \
@@ -13,4 +14,5 @@
 typedef unsigned char uchar;
 typedef unsigned int  uint;
 
-std::string urandom(uint nbytes);
+std::vector<uchar> urandom(uint nbytes);
+std::string surandom(uint nbytes);
