@@ -142,9 +142,9 @@ CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable)
 }
 
         
-FileSystem::FileSystem(int salt_size, int token_size, 
-                       const char* program, bool is_portable)
-    : CrossPlatform(fs::path(program).parent_path(), is_portable)
+FileSystem::FileSystem(uint salt_size, uint token_size, 
+                       fs::path cwd, bool is_portable)
+    : CrossPlatform(cwd, is_portable)
 {
     salt_size_ = salt_size;
     token_size_ = token_size;
@@ -202,14 +202,14 @@ void FileSystem::change_locker_dir(fs::path dir, bool same_ok,
         if (dest == default_locker_file_)
             create_file(default_locker_file_);
         else
-            throw "Could not find locker file!";
+            throw exc::FileNotFound("Could not find locker file!");
     }
 
     if (fs::is_directory(dest))
-        throw "Argument is a directory!";
+        throw exc::AsertionFailed("Argument is a directory!");
 
     if (!same_ok && dest == get_locker_dir())
-        throw "Same locker file!";
+        throw exc::ValueMismatch("Same locker file!");
 
     auto f = std::ofstream(current_locker_file_);
     f << dest;
@@ -301,7 +301,7 @@ std::string FileSystem::generate_token()
 {
     if (!fs::exists(token_file_) || fs::file_size(token_file_) == 0)
         return salt::generate(token_size_, token_file_);
-    throw "Token allready exists!";
+    throw exc::AsertionFailed("Token allready exists!");
 }
 
 bool FileSystem::token_exists() 

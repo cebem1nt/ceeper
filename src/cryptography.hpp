@@ -10,7 +10,6 @@
 #define AES_IV_LENGTH     16 // AES initial vector
 
 namespace crypt {
-    using Triplet = std::array<std::string, 3>; // 0 - Tag, 1 - Login, 2 - Password
     using DerivedKey = std::array<uchar, DERIVE_KEY_LENGTH>;
 };
 
@@ -78,8 +77,8 @@ public:
     std::string decrypt(const std::string& data);
     std::string hash(const std::string& data); // SHA256
     
-    std::string encrypt_triplet(crypt::Triplet t);
-    crypt::Triplet decrypt_triplet(std::string data);
+    std::string encrypt_triplet(ceeper::Triplet t);
+    ceeper::Triplet decrypt_triplet(std::string data);
     
     bool cipher_initialized();
 

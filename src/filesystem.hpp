@@ -35,13 +35,13 @@ class FileSystem
 {
 public:
     FileSystem(
-        int salt_size, 
-        int token_size, 
-        const char* program_name,
+        uint salt_size, 
+        uint token_size, 
+        std::filesystem::path cwd,
         bool is_portable = false
     );
 
-    int salt_size_, token_size_;
+    uint salt_size_, token_size_;
     std::filesystem::path token_file_;
     std::filesystem::path locker_file_;
     std::filesystem::path default_locker_file_;
@@ -60,6 +60,8 @@ public:
     void append_line_to_locker(std::string header, std::string content);
     void remove_line_from_locker(std::string header);
     std::string get_line_from_locker(std::string header);
+
+    // Returns all lines from locker stripping sha256 headers
     std::vector<std::string> get_all_lines_from_locker();
 
     std::string get_locker_salt();

@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "common.hpp"
 #include "filesystem.hpp"
 #include "cryptography.hpp"
 

@@ -121,7 +121,7 @@ void AESBackend::init_cipher(const std::string& passphrase,
 std::string AESBackend::encrypt(const std::string& data) 
 {
     if (!key_set_)
-        throw "Key was not initialized!";
+        throw exc::NotInitialized("Key was not initialized!");
 
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
     EVP_CIPHER_CTX*   ctx = EVP_CIPHER_CTX_new();
@@ -139,13 +139,13 @@ std::string AESBackend::encrypt(const std::string& data)
     auto iv = urandom(AES_IV_LENGTH);
 
     if (EVP_EncryptInit(ctx, cipher, key_.data(), iv.data()) != 1)
-        FATAL("AESBackend: EVP_EncryptInit failed");   
+        throw exc::EncryptionError("AESBackend: EVP_EncryptInit failed");   
 
     if (EVP_EncryptUpdate(ctx, ciphertext.data(), &update_len, input, data.size()) != 1) 
-        FATAL("AESBackend: EVP_EncryptUpdate failed");
+        throw exc::EncryptionError("AESBackend: EVP_EncryptUpdate failed");
 
     if (EVP_EncryptFinal(ctx, ciphertext.data() + update_len, &final_len) != 1)
-        FATAL("AESBackend: EVP_EncryptFinal failed");
+        throw exc::EncryptionError("AESBackend: EVP_EncryptFinal failed");
 
     EVP_CIPHER_CTX_free(ctx);
 
@@ -159,9 +159,8 @@ std::string AESBackend::encrypt(const std::string& data)
 
 std::string AESBackend::decrypt(const std::string& data) 
 {
-    // TODO different classes for exceptions
     if (!key_set_)
-        throw "Key was not initialized!";
+        throw exc::NotInitialized("Key was not initialized!");
     
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
     EVP_CIPHER_CTX*   ctx = EVP_CIPHER_CTX_new();
@@ -176,18 +175,18 @@ std::string AESBackend::decrypt(const std::string& data)
     int   update_len = 0, final_len = 0; 
 
     auto plaintext = std::vector<uchar>(
-            encryped.size() + EVP_CIPHER_block_size(cipher));
+        encryped.size() + EVP_CIPHER_block_size(cipher));
 
     if (EVP_DecryptInit(ctx, cipher, key_.data(), iv) != 1)
-        FATAL("AESBackend: EVP_DecryptInit_ex failed");
+        throw exc::DecryptionError("AESBackend: EVP_DecryptInit failed!");
 
     if (EVP_DecryptUpdate(ctx, plaintext.data(), &update_len, ciphertext, ciphertext_len) != 1)
-        FATAL("AESBackend: EVP_DecryptUpdate failed");
+         throw exc::DecryptionError("AESBackend: EVP_DecryptUpdate failed");
 
     if (EVP_DecryptFinal(ctx, plaintext.data() + update_len, &final_len) != 1)
-        FATAL("AESBackend: invalid ciphertext or padding");
+        throw exc::DecryptionError("AESBackend: invalid ciphertext or padding");
 
-        EVP_CIPHER_CTX_free(ctx);
+    EVP_CIPHER_CTX_free(ctx);
 
     return std::string(
         RC<char*>(plaintext.data()),
@@ -257,7 +256,7 @@ std::string CryptographySystem::hash(const std::string& data)
     return out.str();
 }
 
-std::string CryptographySystem::encrypt_triplet(Triplet t) 
+std::string CryptographySystem::encrypt_triplet(ceeper::Triplet t) 
 {
     auto escape_brackets = [](std::string in) {
         in = std::regex_replace(in, std::regex(R"(\[)"), R"(\[)");
@@ -277,7 +276,7 @@ std::string CryptographySystem::encrypt_triplet(Triplet t)
     return encrypt(formatted);
 }
 
-Triplet CryptographySystem::decrypt_triplet(std::string data) 
+ceeper::Triplet CryptographySystem::decrypt_triplet(std::string data) 
 {
     auto restore_brackets = [](std::string in) {
         in = std::regex_replace(in, std::regex(R"(\\\[)"), "[");
@@ -291,18 +290,18 @@ Triplet CryptographySystem::decrypt_triplet(std::string data)
     std::sregex_iterator it(decrypted.begin(), decrypted.end(), pattern);
     std::sregex_iterator end;
 
-    Triplet out;
+    ceeper::Triplet out;
     std::size_t count = 0;
 
     for (; it != end; it++) {
         if (count == out.size())
-            throw "Malformed .lk file!";
+            throw exc::FileMalformed("Malformed .lk file!");
 
         out[count++] = restore_brackets((*it)[1].str());
     }
 
     if (count != out.size())
-        throw "Malformed .lk file!";
-    
+        throw exc::FileMalformed("Malformed .lk file!");
+
     return out;
 }
