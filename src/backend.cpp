@@ -123,3 +123,7 @@ std::string Ceeper::generate_password(uint length, bool no_letters,
     return password;
 }
     
+std::string Ceeper::get_current_locker(bool is_full) 
+{
+    return get_locker_dir(is_full).string();
+}

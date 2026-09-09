@@ -12,9 +12,7 @@
 #include <regex>
 #include <vector>
 
-using namespace crypt;
-
-static DerivedKey derive_key(
+static std::array<uchar, DERIVE_KEY_LENGTH> derive_key(
     const std::string& passphrase,
     const std::string& salt,
     const std::string& token,

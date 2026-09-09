@@ -6,18 +6,6 @@
 
 #define LK_HEADER_SIZE 64 // SHA256 hash char length
 
-#if defined (__ANDROID__)
-#    define PLATFORM "Android"
-#elif defined (_WIN32)
-#    define PLATFORM "Windows"
-#elif defined (__APPLE__) || defined (__MACH__)
-#    define PLATFORM "Darwin"
-#elif defined(__linux__)
-#    define PLATFORM "Posix"
-#else
-#    error Unsupported platform
-#endif
-
 class CrossPlatform 
 {
 public:

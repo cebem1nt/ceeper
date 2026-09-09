@@ -1,5 +1,5 @@
 CXX      = clang++
-CXXFLAGS = -Wall -Wextra -std=c++20
+CXXFLAGS = -Wall -Wextra -std=c++23
 LFLAGS	 = -lcrypto
 
 SRCS     = $(wildcard src/*.cpp)

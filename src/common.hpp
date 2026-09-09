@@ -3,6 +3,18 @@
 #include <string>
 #include <vector>
 
+#if defined (__ANDROID__)
+#    define PLATFORM "Android"
+#elif defined (_WIN32)
+#    define PLATFORM "Windows"
+#elif defined (__APPLE__) || defined (__MACH__)
+#    define PLATFORM "Darwin"
+#elif defined(__linux__)
+#    define PLATFORM "Posix"
+#else
+#    error Unsupported platform
+#endif
+
 #define FATAL(...) do {                 \
     std::fprintf(stderr, __VA_ARGS__);  \
     exit(EXIT_FAILURE);                 \

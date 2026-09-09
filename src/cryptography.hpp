@@ -9,10 +9,6 @@
 #define DERIVE_KEY_LENGTH 32
 #define AES_IV_LENGTH     16 // AES initial vector
 
-namespace crypt {
-    using DerivedKey = std::array<uchar, DERIVE_KEY_LENGTH>;
-};
-
 class ACryptographyBackend 
 {
 public:
@@ -37,7 +33,7 @@ public:
 protected:
     int iterations_;
     bool key_set_ = false;
-    crypt::DerivedKey key_;
+    std::array<uchar, DERIVE_KEY_LENGTH> key_;
 };
 
 class AESBackend 
