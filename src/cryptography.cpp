@@ -51,16 +51,8 @@ static uint base_64url_decode_calc_length(const std::string& in)
 }
 
 // Accepts padded input only, as base64url_encode returns
-static std::vector<uchar> base64url_decode(std::string in) 
-{    
-    // Convert back to standard base64    
-    for (auto& c : in) {
-        if (c == '-') 
-            c = '+';
-        else if (c == '_') 
-            c = '/';
-    }
-
+static std::vector<uchar> base64_decode(const std::string& in) 
+{
     BIO* bio;
     BIO* b64;
     
@@ -82,7 +74,7 @@ static std::vector<uchar> base64url_decode(std::string in)
 
 
 // https://gist.github.com/barrysteyn/7308212
-static std::string base64url_encode(std::vector<uchar> in) 
+static std::string base64_encode(const std::vector<uchar>& in) 
 {
     BIO* bio = BIO_new(BIO_s_mem());
     BIO* b64 = BIO_new(BIO_f_base64());
@@ -98,7 +90,27 @@ static std::string base64url_encode(std::vector<uchar> in)
 
     auto out = std::string(buffer_ptr->data, buffer_ptr->length);
     BIO_free_all(bio);    
+ 
+    return out;
+}
 
+static std::vector<uchar> base64url_decode(std::string in) 
+{
+    // Convert back to standard base64    
+    for (auto& c : in) {
+        if (c == '-') 
+            c = '+';
+        else if (c == '_') 
+            c = '/';
+    }
+
+    return base64_decode(in);
+}
+
+static std::string base64url_encode(std::vector<uchar> in) 
+{
+    auto out = base64_encode(in);
+    
     // Convert standard base64 to base64url
     for (auto& c : out) {
         if (c == '+') 
@@ -106,7 +118,7 @@ static std::string base64url_encode(std::vector<uchar> in)
         else if (c == '/') 
             c = '_';
     }   
- 
+
     return out;
 }
 
@@ -168,14 +180,14 @@ std::string AESBackend::decrypt(const std::string& data)
     if (!ctx)
         FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
 
-    const auto encryped = base64url_decode(data);
-    const uchar* iv = encryped.data();
-    const uchar* ciphertext = encryped.data() + AES_IV_LENGTH;
-    int   ciphertext_len = encryped.size() - AES_IV_LENGTH;
+    const auto encrypted = base64url_decode(data);
+    const uchar* iv = encrypted.data();
+    const uchar* ciphertext = encrypted.data() + AES_IV_LENGTH;
+    int   ciphertext_len = encrypted.size() - AES_IV_LENGTH;
     int   update_len = 0, final_len = 0; 
 
     auto plaintext = std::vector<uchar>(
-        encryped.size() + EVP_CIPHER_block_size(cipher));
+        encrypted.size() + EVP_CIPHER_block_size(cipher));
 
     if (EVP_DecryptInit(ctx, cipher, key_.data(), iv) != 1)
         throw exc::DecryptionError("AESBackend: EVP_DecryptInit failed!");

@@ -17,8 +17,11 @@ typedef unsigned int  uint;
 std::vector<uchar> urandom(uint nbytes);
 std::string surandom(uint nbytes);
 
+std::string to_lower(std::string in);
+
 namespace ceeper {
-    using Triplet = std::array<std::string, 3>; // 0 - Tag, 1 - Login, 2 - Password
+     // 0 - Tag, 1 - Login, 2 - Password
+    using Triplet = std::array<std::string, 3>;
 }
 
 namespace exc {
@@ -43,4 +46,7 @@ namespace exc {
     class FileMalformed  : public Exception { using Exception::Exception; };
     class EncryptionError: public Exception { using Exception::Exception; };
     class DecryptionError: public Exception { using Exception::Exception; };
+    class AlreadyExists  : public Exception { using Exception::Exception; };
+    class NotFound       : public Exception { using Exception::Exception; };
+
 } // namespace exc;

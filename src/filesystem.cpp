@@ -232,7 +232,7 @@ std::string FileSystem::get_line_from_locker(std::string header)
 
     while (std::getline(f, line)) {
         if (line.compare(0, LK_HEADER_SIZE, header) == 0)
-            return line; 
+            return line;
     }
 
     return "";

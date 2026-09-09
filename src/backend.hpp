@@ -1,5 +1,9 @@
+#pragma once
+
 #include "filesystem.hpp"
 #include "cryptography.hpp"
+
+#include <optional>
 
 class Ceeper:
     private FileSystem,
@@ -10,7 +14,7 @@ public:
         uint token_size, uint salt_size, uint iterations,
         std::string backend, const char* program_name, bool is_portable = false
     ) 
-    : FileSystem(salt_size, token_size, std::filesystem::path(program_name).parent_path()), 
+    : FileSystem(salt_size, token_size, std::filesystem::path(program_name).parent_path(), is_portable), 
       CryptographySystem(iterations, backend)
     {}
 
@@ -21,8 +25,8 @@ public:
     );
     
     std::vector<ceeper::Triplet> list_triplets();
-    ceeper::Triplet search_for_triplet(const std::string& tag_part);
-    ceeper::Triplet get_triplet(const std::string& tag);
+    std::vector<ceeper::Triplet> search_for_triplets(const std::string& tag_part);
+    std::optional<ceeper::Triplet> get_triplet(const std::string& tag);
     void store_triplet(ceeper::Triplet t);
     void remove_triplet(const std::string& tag);
     void edit_triplet(const std::string& tag, int property, std::string value);
