@@ -57,7 +57,7 @@ public:
     std::string generate_token();
 
     bool token_exists();
-    bool is_locker_salted();
+    bool is_new_locker();
 
 private:
     void sync_locker();

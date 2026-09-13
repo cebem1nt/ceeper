@@ -304,8 +304,8 @@ bool FileSystem::token_exists()
     return salt::exists(token_size_, token_file_);
 }
 
-bool FileSystem::is_locker_salted() 
+bool FileSystem::is_new_locker() 
 {
-    return salt::exists(salt_size_, locker_file_);
+    return !salt::exists(salt_size_, locker_file_);
 }
 

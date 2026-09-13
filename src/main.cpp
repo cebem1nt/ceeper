@@ -60,7 +60,6 @@ int main(int argc, char** argv)
             p.parse_args(argc, argv);
         } catch (const std::exception& err) {
             std::cerr << err.what() << std::endl;
-            std::cerr << p;
             return 1;
         }
 

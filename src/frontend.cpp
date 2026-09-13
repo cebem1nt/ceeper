@@ -1,11 +1,7 @@
 #include "frontend.hpp"
 
-#ifdef WIN32
-#   include <windows.h>
-#else
-#   include <termios.h>
-#   include <unistd.h>
-#endif
+#include "clippp.hpp"
+#include "common.hpp"
 
 #include <iostream>
 #include <print>
@@ -15,62 +11,6 @@
 
 using std::println;
 
-// https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
-static void toggle_stdin_echo(bool enable = true) 
-{
-#ifdef WIN32
-    // Windows Implementation using GetStdHandle and SetConsoleMode
-    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE); 
-    DWORD console_mode;
-    GetConsoleMode(handle, &console_mode);
-
-    if (!enable)
-        console_mode &= ~ENABLE_ECHO_INPUT; // Disable echo
-    else
-        console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
-
-    SetConsoleMode(handle, console_mode);
-
-#else
-    // POSIX/Unix Implementation using termios
-    struct termios ts;
-    // Get current settings
-    tcgetattr(STDIN_FILENO, &ts);
-    
-    if (!enable)
-        ts.c_lflag &= ~ECHO; // Disable echo flag
-    else
-        ts.c_lflag |= ECHO;  // Enable echo flag
-
-    // Apply new settings immediately
-    (void) tcsetattr(STDIN_FILENO, TCSANOW, &ts);
-#endif
-}
-
-static std::string input(std::optional<std::string> prompt = std::nullopt) 
-{
-    if (prompt)
-        std::cout << *prompt;
-
-    std::string out;
-    std::getline(std::cin, out);
-    std::cout << '\n';
-
-    return out;
-}
-
-template <class... Args>
-static std::string getpasswd(std::format_string<Args...> prompt, Args&&... args)
-{
-    std::cout << std::format(prompt, std::forward<Args>(args)...);
-    
-    toggle_stdin_echo(false);
-    auto out = input();
-    toggle_stdin_echo(true);
-
-    return out;
-}
-
 void CLI::welcome() 
 {
     println("Yapi, hello world! welcome");
@@ -78,7 +18,7 @@ void CLI::welcome()
 
 void CLI::auth() 
 {
-    if (!ceeper_.is_locker_salted())
+    if (ceeper_.is_new_locker())
         registrate();
     else
         login();
@@ -116,7 +56,7 @@ void CLI::login()
     auto locker = ceeper_.get_current_locker(false);
 
     while (true) {
-        auto passwd = getpasswd("Passphrase: [{}]", locker);
+        auto passwd = getpasswd("Passphrase: [{}] ", locker);
 
         try {
             if (ceeper_.unlock(passwd))
@@ -173,6 +113,28 @@ int CLI::add_triplet(const std::string& tag,
     return 0;
 }
 
+int CLI::get_triplet(const std::string& tag,
+                     bool get_login, bool do_print) 
+{
+    auto t = ceeper_.get_triplet(tag);
+    
+    if (!t) {
+        println("Could not find triplet with tag: {}", tag);
+        return 1;
+    }
+
+    auto out = get_login ? (*t)[1] 
+                         : (*t)[2];
+
+
+    if (do_print)
+        std::cout << out << std::endl;
+    else 
+        copy_to_clipboard(out);
+
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
@@ -182,6 +144,10 @@ int CLI::match_args(argparse::ArgumentParser& p)
         for (auto& tag : ARGS_GET_STRVEC(p, "-A")) {
             return add_triplet(tag, p.get<bool>("-s"));
         }
+    } else if (p.is_used("-G")) {
+        get_triplet(
+            ARGS_GET_STR(p, "-G"), 
+            p.get<bool>("-l"), p.get<bool>("-p"));
     }
 
     std::unreachable();
@@ -200,6 +166,4 @@ int CLI::main(argparse::ArgumentParser& p, bool is_interactive)
         return interactive_cli(p);
 
     return match_args(p);
-
-    return 0;
 }

@@ -1,7 +1,55 @@
 #include "common.hpp"
 
+#ifdef WIN32
+#   include <windows.h>
+#else
+#   include <termios.h>
+#   include <unistd.h>
+#endif
+
+#include <iostream>
 #include <random>
 #include <algorithm>
+
+// https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
+void toggle_stdin_echo(bool enable) 
+{
+#ifdef WIN32
+    // Windows Implementation using GetStdHandle and SetConsoleMode
+    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE); 
+    DWORD console_mode;
+    GetConsoleMode(handle, &console_mode);
+
+    if (!enable)
+        console_mode &= ~ENABLE_ECHO_INPUT; // Disable echo
+    else
+        console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
+
+    SetConsoleMode(handle, console_mode);
+
+#else
+    // POSIX/Unix Implementation using termios
+    struct termios ts;
+    // Get current settings
+    tcgetattr(STDIN_FILENO, &ts);
+    
+    if (!enable)
+        ts.c_lflag &= ~ECHO; // Disable echo flag
+    else
+        ts.c_lflag |= ECHO;  // Enable echo flag
+
+    // Apply new settings immediately
+    (void) tcsetattr(STDIN_FILENO, TCSANOW, &ts);
+#endif
+}
+
+std::string input()
+{
+    std::string out;
+    std::getline(std::cin, out);
+    std::cout << '\n';
+    return out;
+}
 
 std::string to_lower(std::string in) 
 {

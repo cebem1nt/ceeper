@@ -1,5 +1,7 @@
 #pragma once
 
+#include <format>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -30,6 +32,32 @@ std::vector<uchar> urandom(uint nbytes);
 std::string surandom(uint nbytes);
 
 std::string to_lower(std::string in);
+std::string input();
+
+std::string input();
+void toggle_stdin_echo(bool enable = true);
+
+template <class... Args>
+std::string input(std::format_string<Args...> prompt, Args&&... args)
+{
+    std::cout << std::format(prompt, std::forward<Args>(args)...);
+    std::string out;
+    std::getline(std::cin, out);
+    std::cout << '\n';
+    return out;
+}
+
+template <class... Args>
+std::string getpasswd(std::format_string<Args...> prompt, Args&&... args)
+{
+    std::cout << std::format(prompt, std::forward<Args>(args)...);
+
+    toggle_stdin_echo(false);
+    auto out = input();
+    toggle_stdin_echo(true);
+
+    return out;
+}
 
 namespace ceeper {
      // 0 - Tag, 1 - Login, 2 - Password
