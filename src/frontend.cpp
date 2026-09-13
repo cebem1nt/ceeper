@@ -10,8 +10,10 @@
 #include <iostream>
 #include <print>
 
+#define ARGS_GET_STRVEC(p, flag) p.get<std::vector<std::string>>(flag)
+#define ARGS_GET_STR(p, flag) p.get<std::string>(flag)
+
 using std::println;
-using std::print;
 
 // https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
 static void toggle_stdin_echo(bool enable = true) 
@@ -76,7 +78,7 @@ void CLI::welcome()
 
 void CLI::auth() 
 {
-    if (ceeper_.get_locker_salt().empty())
+    if (!ceeper_.is_locker_salted())
         registrate();
     else
         login();
@@ -128,4 +130,76 @@ void CLI::login()
             exit(1); // TODO see how handle exits correctly in interactive mode
         }
     }
+}
+
+int CLI::add_triplet(const std::string& tag, 
+                     bool show_password,
+                     std::optional<std::string> password)
+{
+    if (ceeper_.get_triplet(tag)) {
+        println("Triplet with tag {} already exists.", tag);
+        return 1;
+    }
+
+    println("\nCreating new triplet with tag \"{}\"\n", tag);
+    
+    std::string login;
+
+    while (true) {
+        login = input("Enter login: ");
+
+        if (!login.empty())
+            break;
+
+        println("Login can not be empty!");
+    }
+
+    if (!password) {
+        while (true) {
+            if (show_password)
+                password = input("Enter the password [*] : ");
+            else
+                password = getpasswd("Enter the password: ");
+
+            if (!password->empty())
+                break;
+
+            println("Password can not be empty!");
+        }
+    }
+
+    ceeper_.store_triplet({ tag, login, *password });
+    println("Triplet successfully stored with tag: {}", tag);
+    return 0;
+}
+
+int CLI::match_args(argparse::ArgumentParser& p)
+{
+    if (!ceeper_.is_unlocked())
+        auth();
+
+    if (p.is_used("-A")) {
+        for (auto& tag : ARGS_GET_STRVEC(p, "-A")) {
+            return add_triplet(tag, p.get<bool>("-s"));
+        }
+    }
+
+    std::unreachable();
+}
+
+int CLI::interactive_cli(argparse::ArgumentParser& p) 
+{
+    std::unreachable();
+}
+
+int CLI::main(argparse::ArgumentParser& p, bool is_interactive) 
+{
+    // TODO events
+
+    if (is_interactive)
+        return interactive_cli(p);
+
+    return match_args(p);
+
+    return 0;
 }

@@ -177,15 +177,9 @@ const fs::path FileSystem::get_locker_dir(bool is_full)
 void FileSystem::sync_locker() 
 {
     locker_file_ = get_locker_dir();
-   
-    if (locker_file_.empty() || !fs::exists(locker_file_)) {
-        locker_file_ = default_locker_file_;
 
-        if (!fs::exists(locker_file_))
-            create_file(locker_file_);
-
-        change_locker_dir("default.lk");
-    }
+    if (locker_file_.empty() || !fs::exists(locker_file_))
+        change_locker_dir("default.lk", true); 
 }
 
 void FileSystem::change_locker_dir(fs::path dir, bool same_ok, 
@@ -212,7 +206,8 @@ void FileSystem::change_locker_dir(fs::path dir, bool same_ok,
         throw exc::ValueMismatch("Same locker file!");
 
     auto f = std::ofstream(current_locker_file_);
-    f << dest;
+    f << dest.string();
+    f.flush(); // <- I f*cking hate cpp buffering.
 
     sync_locker();
 }
@@ -307,5 +302,10 @@ std::string FileSystem::generate_token()
 bool FileSystem::token_exists() 
 {
     return salt::exists(token_size_, token_file_);
+}
+
+bool FileSystem::is_locker_salted() 
+{
+    return salt::exists(salt_size_, locker_file_);
 }
 

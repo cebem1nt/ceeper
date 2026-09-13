@@ -27,9 +27,12 @@ public:
     std::vector<ceeper::Triplet> list_triplets();
     std::vector<ceeper::Triplet> search_for_triplets(const std::string& tag_part);
     std::optional<ceeper::Triplet> get_triplet(const std::string& tag);
+    
     void store_triplet(ceeper::Triplet t);
     void remove_triplet(const std::string& tag);
     void edit_triplet(const std::string& tag, int property, std::string value);
+
+    bool is_unlocked();
 
     std::string get_current_locker(bool is_full = true);
 };

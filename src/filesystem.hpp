@@ -55,7 +55,9 @@ public:
     std::string get_locker_salt();
     std::string get_token();
     std::string generate_token();
+
     bool token_exists();
+    bool is_locker_salted();
 
 private:
     void sync_locker();

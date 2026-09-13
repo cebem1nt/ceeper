@@ -1,6 +1,7 @@
 #include "backend.hpp"
+#include "argparse.hpp"
 
-class CLI 
+class CLI
 {
 public:
     CLI(Ceeper& instance) :
@@ -10,6 +11,17 @@ public:
     void auth();
     void registrate();
     void login();
+
+    int add_triplet(
+        const std::string& tag,
+        bool show_password = false,
+        std::optional<std::string> password = std::nullopt 
+    );
+
+    int match_args(argparse::ArgumentParser& p);
+    int interactive_cli(argparse::ArgumentParser& p);
+
+    int main(argparse::ArgumentParser& p, bool is_interactive = false);
 
 private:
     Ceeper& ceeper_;

@@ -1,4 +1,5 @@
 #include "backend.hpp"
+
 #include <random>
 
 using namespace ceeper;
@@ -126,4 +127,9 @@ std::string Ceeper::generate_password(uint length, bool no_letters,
 std::string Ceeper::get_current_locker(bool is_full) 
 {
     return get_locker_dir(is_full).string();
+}
+
+bool Ceeper::is_unlocked() 
+{
+    return cipher_initialized();
 }

@@ -1,43 +1,71 @@
-#include <iostream>
+#include "argparse.hpp"
+#include "params.hpp"
 
-#include "common.hpp"
-#include "filesystem.hpp"
-#include "cryptography.hpp"
+#include "frontend.hpp"
 
 int main(int argc, char** argv)
 {
-
-    auto ff = FileSystem(16, 16, argv[0]);
-
-    std::cout << ff.platform_ << "\n";
-    std::cout << ff.data_dir_ << "\n";
-    std::cout << ff.storage_dir_ << "\n";
-    std::cout << ff.user_dir_ << "\n";
-
-    std::cout << ff.get_locker_dir() << '\n';
-    std::cout << ff.get_locker_dir(false) << '\n';
-
-    auto cs = CryptographySystem(235, "AES");
+    argparse::ArgumentParser p(argv[0]);
+    auto& mode = p.add_mutually_exclusive_group(true);
     
-    std::cout << cs.cipher_initialized() << "\n";
+    mode.add_argument("-A").metavar("TAG")
+        .help("Add a new triplet with given TAG[s]")
+        .nargs(argparse::nargs_pattern::at_least_one);
 
-    std::string key(32, 'a');
-    std::string a = "aaaaaaaaaaaaaaa";
+    mode.add_argument("-G").metavar("TAG")
+        .help("get password by TAG");
 
-    cs.init_cipher(key, key, key);
+    mode.add_argument("-R").metavar("TAG")
+        .help("remove triplet / triplets by TAG[s]")
+        .nargs(argparse::nargs_pattern::at_least_one);
 
-    std::cout << cs.cipher_initialized() << '\n';
+    mode.add_argument("-E").metavar("TAG")
+        .help("interactively edit triplet by TAG[s]")
+        .nargs(argparse::nargs_pattern::at_least_one);
 
-    auto encrypted = cs.encrypt(a);
-    std::cout << encrypted << '\n';
+    mode.add_argument("-F").metavar("PART")
+        .help("find triplets by given tag PART[s]")
+        .nargs(argparse::nargs_pattern::at_least_one);
 
-    auto decrypted = cs.decrypt(encrypted);
-    std::cout << decrypted << '\n';
+    mode.add_argument("-L").flag()
+        .help("list triplets");
 
-    encrypted = cs.encrypt_triplet({"[A]", "[ B ]", "C"});
-    std::cout << encrypted << '\n';
+    // 
 
-    auto t = cs.decrypt_triplet(encrypted);
-    std::cout << t[0] << t[1] << t[2] << '\n';
+    p.add_argument("-l", "--login").flag()
+        .help("when using -G, return login instead of password");
 
+    p.add_argument("-s", "--show").flag()
+        .help("do not hide passwords");
+
+    p.add_argument("-n", "--num").flag()
+        .help("show number of stored passwords");
+
+    p.add_argument("-f", "--force").flag()
+        .help("dorce action, don't prompt for confirmation");
+
+    p.add_argument("-p", "--print").flag()
+        .help("print to stdout instead of copying");
+
+    // TODO Generate parser and everything from keeper.py:69
+
+    auto ceeper = Ceeper(
+        params::TOKEN_SIZE, params::SALT_SIZE, params::ITERATIONS,
+        params::BACKEND, argv[0], params::IS_PORTABLE_BUILD);
+
+    auto frontend = CLI(ceeper);
+
+    if (argc > 0) {
+        try {
+            p.parse_args(argc, argv);
+        } catch (const std::exception& err) {
+            std::cerr << err.what() << std::endl;
+            std::cerr << p;
+            return 1;
+        }
+
+        return frontend.main(p);
+    }
+
+    return frontend.main(p, true); // interactive mode
 }
