@@ -1,6 +1,6 @@
 #include "frontend.hpp"
 
-#include "clippp.hpp"
+#include "clipcpy.hpp"
 #include "common.hpp"
 
 #include <iostream>
@@ -127,10 +127,17 @@ int CLI::get_triplet(const std::string& tag,
                          : (*t)[2];
 
 
-    if (do_print)
-        std::cout << out << std::endl;
-    else 
-        copy_to_clipboard(out);
+    if (do_print) {
+        std::cout << out << '\n';
+        return 0;
+    }
+        
+    bool success = clipcpy(out);
+
+    if (success)
+        println("Added to clipboard!");
+    else
+        println("Could not copy, unsupported os for now :(");
 
     return 0;
 }
@@ -145,7 +152,7 @@ int CLI::match_args(argparse::ArgumentParser& p)
             return add_triplet(tag, p.get<bool>("-s"));
         }
     } else if (p.is_used("-G")) {
-        get_triplet(
+        return get_triplet(
             ARGS_GET_STR(p, "-G"), 
             p.get<bool>("-l"), p.get<bool>("-p"));
     }
