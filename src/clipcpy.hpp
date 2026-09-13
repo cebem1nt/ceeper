@@ -2,7 +2,6 @@
 
 #include <string>
 #include <cstdlib>
-#include <vector>
 
 #if defined(_WIN32)
 
@@ -32,7 +31,6 @@ inline bool clipcpy(const std::string& text)
     pclose(f);
 
     return true;
-
 }
 
 #else

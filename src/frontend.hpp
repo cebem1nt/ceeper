@@ -24,6 +24,16 @@ public:
         bool do_print = false
     );
 
+    int remove_triplet(
+        const std::string& tag,
+        bool force = false
+    );
+
+    int list_triplets(
+        bool ntriplets = false,
+        bool do_show = false
+    );
+
     int match_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
     int main(argparse::ArgumentParser& p, bool is_interactive = false);

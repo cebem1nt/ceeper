@@ -11,6 +11,15 @@
 
 using std::println;
 
+void print_triplet(const ceeper::Triplet& t, bool show_password = false) 
+{
+    println("\nTag: {}", t[0]);
+    println("Login: {}", t[1]);
+
+    if (show_password)
+        println("Password: {}", t[2]);
+}
+
 void CLI::welcome() 
 {
     println("Yapi, hello world! welcome");
@@ -116,16 +125,15 @@ int CLI::add_triplet(const std::string& tag,
 int CLI::get_triplet(const std::string& tag,
                      bool get_login, bool do_print) 
 {
-    auto t = ceeper_.get_triplet(tag);
+    auto triplet = ceeper_.get_triplet(tag);
     
-    if (!t) {
+    if (!triplet) {
         println("Could not find triplet with tag: {}", tag);
         return 1;
     }
 
-    auto out = get_login ? (*t)[1] 
-                         : (*t)[2];
-
+    auto out = get_login ? (*triplet)[1] 
+                         : (*triplet)[2];
 
     if (do_print) {
         std::cout << out << '\n';
@@ -142,19 +150,74 @@ int CLI::get_triplet(const std::string& tag,
     return 0;
 }
 
+int CLI::remove_triplet(const std::string& tag, bool force) 
+{
+    auto triplet = ceeper_.get_triplet(tag);
+
+    if (!triplet) {
+        println("Could not find triplet with tag: {}", tag);
+        return 1;
+    }
+
+    print_triplet(*triplet);
+    putchar('\n');
+
+    if (!force) {
+        auto choice = input("Remove this triplet? [y/N] ");
+        choice = to_lower(trim_whitespace(choice));
+        
+        if (choice != "y") {
+            println("Aboarting..");
+            return 1;
+        }
+    }
+
+    ceeper_.remove_triplet(tag);
+    println("Triplet removed");
+
+    return 0;
+}
+
+int CLI::list_triplets(bool ntriplets, bool do_show)
+{
+    auto triplets = ceeper_.list_triplets();
+    
+    if (ntriplets)
+        println("{}", triplets.size()); 
+    else {
+        for (auto& t : triplets) {
+            print_triplet(t, do_show);
+        }
+    }
+
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
         auth();
 
+    int rcs = 0;
+
     if (p.is_used("-A")) {
-        for (auto& tag : ARGS_GET_STRVEC(p, "-A")) {
-            return add_triplet(tag, p.get<bool>("-s"));
-        }
+        for (auto& tag : ARGS_GET_STRVEC(p, "-A")) 
+            rcs += add_triplet(tag, p.get<bool>("-s"));
+        
+        return rcs;
     } else if (p.is_used("-G")) {
         return get_triplet(
             ARGS_GET_STR(p, "-G"), 
             p.get<bool>("-l"), p.get<bool>("-p"));
+
+    } else if (p.is_used("-R")) {
+        for (auto& tag : ARGS_GET_STRVEC(p, "-R")) 
+            rcs += remove_triplet(tag, p.get<bool>("-f"));
+        
+        return rcs;
+    } else if (p.is_used("-L")) {
+        return list_triplets(p.get<bool>("-n"), 
+                             p.get<bool>("-s"));
     }
 
     std::unreachable();

@@ -32,6 +32,8 @@ std::vector<uchar> urandom(uint nbytes);
 std::string surandom(uint nbytes);
 
 std::string to_lower(std::string in);
+std::string trim_whitespace(std::string in);
+
 std::string input();
 
 std::string input();

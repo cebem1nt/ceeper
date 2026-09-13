@@ -5,6 +5,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <fstream>
+#include <print>
 
 namespace fs = std::filesystem;
 
@@ -226,8 +227,9 @@ std::string FileSystem::get_line_from_locker(std::string header)
     std::string line;
 
     while (std::getline(f, line)) {
+        std::println("{}", line);
         if (line.compare(0, LK_HEADER_SIZE, header) == 0)
-            return line;
+            return line.substr(LK_HEADER_SIZE);
     }
 
     return "";
@@ -257,6 +259,7 @@ void FileSystem::remove_line_from_locker(std::string header)
 
     auto salt = std::string(salt_size_, '\0');
     originalf.read(salt.data(), salt.size());
+    tmpf << salt;
 
     std::string line;
 

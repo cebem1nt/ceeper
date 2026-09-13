@@ -57,6 +57,21 @@ std::string to_lower(std::string in)
     return in;
 }
 
+std::string trim_whitespace(std::string in)
+{
+    auto not_space = [](unsigned char ch) { 
+        return !std::isspace(ch); 
+    };
+
+    auto begin = std::find_if(in.begin(), in.end(), not_space);
+    auto end   = std::find_if(in.rbegin(), in.rend(), not_space).base();
+
+    if (begin >= end) 
+        return {};
+    
+    return std::string(begin, end);
+}
+
 std::vector<uchar> urandom(uint nbytes) 
 {
     // Might not be very good
