@@ -29,6 +29,15 @@ public:
         bool force = false
     );
 
+    int edit_triplet(
+        const std::string& tag
+    );
+
+    int find_triplet(
+        const std::string& part,
+        bool do_show = false
+    );
+
     int list_triplets(
         bool ntriplets = false,
         bool do_show = false

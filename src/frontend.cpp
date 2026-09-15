@@ -193,34 +193,96 @@ int CLI::list_triplets(bool ntriplets, bool do_show)
     return 0;
 }
 
+int CLI::edit_triplet(const std::string& tag)
+{
+    const char* params[] = {"Tag", "Login", "Password"};
+
+    auto triplet = ceeper_.get_triplet(tag);
+    int prop = 0;
+
+    if (!triplet) {
+        println("Could not find triplet with tag: {}", tag);
+        return 1;
+    }
+
+    println("\nEditing triplet with tag: {}", tag);
+    println("Parameters that can be edited: \n"
+            "\t0 - tag \n"
+            "\t1 - login \n"
+            "\t2 - password\n");
+
+    while (true) {
+        auto in = input("Enter the parameter to edit (0-2): ");
+
+        try {
+            prop = std::stoi(in);
+        } catch (...) {
+            prop = -1;
+        }
+
+        if (prop < 0 || prop > 2) {
+            println("Incorrect parameter, try again");
+            continue;
+        }
+
+        break;
+    }
+
+    while(true) {
+        auto value = input("Enter new value for \"{}\": ", params[prop]);
+
+        try {
+            ceeper_.edit_triplet(tag, prop, value);
+            break;
+        } catch (exc::AlreadyExists& e) {
+            println("{}", e.what());
+        }
+    }
+
+    println("Succesfully edited triplet with tag: \"{}\"", tag);
+    return 0;
+}
+
+
+int CLI::find_triplet(const std::string& part, bool do_show) 
+{
+    auto found = ceeper_.search_for_triplets(part);
+ 
+    for (auto& t : found) {
+        print_triplet(t, do_show);
+    }
+
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
         auth();
 
-    int rcs = 0;
+    int rc = 0;
 
     if (p.is_used("-A")) {
         for (auto& tag : ARGS_GET_STRVEC(p, "-A")) 
-            rcs += add_triplet(tag, p.get<bool>("-s"));
-        
-        return rcs;
+            rc += add_triplet(tag, p.get<bool>("-s"));
     } else if (p.is_used("-G")) {
-        return get_triplet(
-            ARGS_GET_STR(p, "-G"), 
+        rc = get_triplet(ARGS_GET_STR(p, "-G"), 
             p.get<bool>("-l"), p.get<bool>("-p"));
-
     } else if (p.is_used("-R")) {
         for (auto& tag : ARGS_GET_STRVEC(p, "-R")) 
-            rcs += remove_triplet(tag, p.get<bool>("-f"));
-        
-        return rcs;
+            rc += remove_triplet(tag, p.get<bool>("-f"));
     } else if (p.is_used("-L")) {
-        return list_triplets(p.get<bool>("-n"), 
-                             p.get<bool>("-s"));
+        rc = list_triplets(p.get<bool>("-n"), 
+                           p.get<bool>("-s"));
+    } else if (p.is_used("-E")) { 
+        for (auto& tag : ARGS_GET_STRVEC(p, "-E")) 
+            rc += edit_triplet(tag);
+    } else if (p.is_used("-F")) {
+        for (auto& part : ARGS_GET_STRVEC(p, "-F")) 
+            rc += find_triplet(part);
     }
 
-    std::unreachable();
+    return rc;
 }
 
 int CLI::interactive_cli(argparse::ArgumentParser& p) 
