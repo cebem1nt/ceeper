@@ -303,6 +303,35 @@ int CLI::gen_and_add_triplet(const std::string& tag, uint length, bool no_letter
     return 0;
 }
 
+int CLI::change_locker(const std::string& dest, bool is_abs)
+{
+    try {
+        ceeper_.change_locker_dir(std::filesystem::path(dest), false, !is_abs);
+        println("\nSuccesfuly changed current locker to: {}\n", dest);
+    } catch (exc::Exception& e) {
+        println("{}", e.what());
+        return 1;
+    }
+
+    return 0;
+}
+
+
+int CLI::generate_token(bool force) 
+{
+    println("Generating token...");
+    
+    try {
+        ceeper_.generate_token(force);
+        println("Token was generated");
+    } catch (exc::Exception& e) {
+        println("{}", e.what());
+        return 1;
+    }
+
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
@@ -314,7 +343,12 @@ int CLI::match_args(argparse::ArgumentParser& p)
         auto tag = ARGS_GET_STR(p, "-A");
 
         if (p.is_used("-g"))
-            rc = gen_and_add_triplet(tag, p.get<int>("-l"), p.get<bool>("-nl"), p.get<bool>("-ns"), p.get<bool>("-p"));
+            rc = gen_and_add_triplet(tag, 
+                p.get<int>("-l"), 
+                p.get<bool>("-nl"), 
+                p.get<bool>("-ns"), 
+                p.get<bool>("-p")
+            );
         else
             rc = add_triplet(tag, p.get<bool>("-s"));
     } else if (p.is_used("-G")) {
@@ -332,9 +366,19 @@ int CLI::match_args(argparse::ArgumentParser& p)
     } else if (p.is_used("-F")) {
         for (auto& part : ARGS_GET_STRVEC(p, "-F")) 
             rc += find_triplet(part);
+    } else if (p.is_used("-C")) {
+        rc =change_locker(ARGS_GET_STR(p, "-C"), p.get<bool>("-a"));
     } else if (p.is_used("-g")) {
-        generate_password(
-            p.get<int>("-l"), p.get<bool>("-nl"), p.get<bool>("-ns"), p.get<bool>("-p"));
+        rc = generate_password(
+            p.get<int>("-l"), 
+            p.get<bool>("-nl"), 
+            p.get<bool>("-ns"), 
+            p.get<bool>("-p")
+        );
+    } else if (p.is_used("-c")) {
+        std::println("{}", ceeper_.get_current_locker(p.get<bool>("-a")));
+    } else if (p.is_used("--generate-token")) {
+        rc = generate_token(p.get<bool>("-f"));
     }
 
     return rc;

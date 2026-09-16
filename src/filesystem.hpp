@@ -43,7 +43,7 @@ public:
 
     void copy_locker(std::filesystem::path dest);
     void copy_token(std::filesystem::path dest);
-    const std::filesystem::path get_locker_dir(bool is_full = true);
+    const std::filesystem::path get_locker_dir(bool abs = true);
 
     void append_line_to_locker(std::string header, std::string content);
     void remove_line_from_locker(std::string header);
@@ -54,7 +54,7 @@ public:
 
     std::string get_locker_salt();
     std::string get_token();
-    std::string generate_token();
+    std::string generate_token(bool force = false);
 
     bool token_exists();
     bool is_new_locker();

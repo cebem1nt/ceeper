@@ -58,6 +58,15 @@ public:
         bool do_print = false
     );
 
+    int change_locker(
+        const std::string& dest,
+        bool is_abs = false
+    );
+
+    int generate_token(
+        bool force = false
+    );
+
     int match_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
     int main(argparse::ArgumentParser& p, bool is_interactive = false);

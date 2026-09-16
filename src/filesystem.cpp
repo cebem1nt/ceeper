@@ -159,7 +159,7 @@ FileSystem::FileSystem(uint salt_size, uint token_size,
     sync_locker();
 }
 
-const fs::path FileSystem::get_locker_dir(bool is_full) 
+const fs::path FileSystem::get_locker_dir(bool is_abs) 
 {
     std::string content;
 
@@ -168,7 +168,7 @@ const fs::path FileSystem::get_locker_dir(bool is_full)
 
     auto cur_locker_dir = fs::path(content);
 
-    if (!is_full && content.starts_with(storage_dir_.string()))
+    if (!is_abs && content.starts_with(storage_dir_.string()))
         return fs::relative(cur_locker_dir, storage_dir_);
 
     return cur_locker_dir;
@@ -293,9 +293,9 @@ std::string FileSystem::get_token()
     return salt::get(token_size_, token_file_, false);
 }
 
-std::string FileSystem::generate_token()
+std::string FileSystem::generate_token(bool force)
 {
-    if (!fs::exists(token_file_) || fs::file_size(token_file_) == 0)
+    if (force || !fs::exists(token_file_) || fs::file_size(token_file_) == 0)
         return salt::generate(token_size_, token_file_);
     throw exc::AsertionFailed("Token allready exists!");
 }
