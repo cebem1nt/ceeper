@@ -43,6 +43,21 @@ public:
         bool do_show = false
     );
 
+    int generate_password(
+        uint length = 16,
+        bool no_letters = false,
+        bool no_special_syms = false,
+        bool do_print = false
+    );
+
+    int gen_and_add_triplet(
+        const std::string& tag,
+        uint length = 16,
+        bool no_letters = false,
+        bool no_special_syms = false,
+        bool do_print = false
+    );
+
     int match_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
     int main(argparse::ArgumentParser& p, bool is_interactive = false);

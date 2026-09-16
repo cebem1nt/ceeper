@@ -81,8 +81,7 @@ void CLI::login()
     }
 }
 
-int CLI::add_triplet(const std::string& tag, 
-                     bool show_password,
+int CLI::add_triplet(const std::string& tag, bool show_password,
                      std::optional<std::string> password)
 {
     if (ceeper_.get_triplet(tag)) {
@@ -255,6 +254,55 @@ int CLI::find_triplet(const std::string& part, bool do_show)
     return 0;
 }
 
+int CLI::generate_password(uint length, bool no_letters, 
+                           bool no_special_syms, bool do_print) 
+{
+    std::string generated = {};
+
+    try {
+        generated = ceeper_.generate_password(length, no_letters, no_special_syms);
+    } catch (exc::ValueMismatch& e) {
+        println("{}", e.what());
+        return 1;
+    }
+
+    if (do_print)
+        println("{}", generated);
+    else {
+        clipcpy(generated);
+        println("Added to clipboard!");
+    }
+
+    return 0;
+}
+
+int CLI::gen_and_add_triplet(const std::string& tag, uint length, bool no_letters,
+                             bool no_special_syms, bool do_print) 
+{
+    std::string generated = {};
+
+    try {
+        generated = ceeper_.generate_password(length, no_letters, no_special_syms);
+    } catch (exc::ValueMismatch& e) {
+        println("{}", e.what());
+        return 1;
+    }
+
+    int rc = add_triplet(tag, false, generated);
+    
+    if (rc != 0)
+        return rc;
+
+    if (do_print) 
+        println("{}", generated);
+    else {
+        clipcpy(generated);
+        println("Added to clipboard!");
+    }
+
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
@@ -263,11 +311,15 @@ int CLI::match_args(argparse::ArgumentParser& p)
     int rc = 0;
 
     if (p.is_used("-A")) {
-        for (auto& tag : ARGS_GET_STRVEC(p, "-A")) 
-            rc += add_triplet(tag, p.get<bool>("-s"));
+        auto tag = ARGS_GET_STR(p, "-A");
+
+        if (p.is_used("-g"))
+            rc = gen_and_add_triplet(tag, p.get<int>("-l"), p.get<bool>("-nl"), p.get<bool>("-ns"), p.get<bool>("-p"));
+        else
+            rc = add_triplet(tag, p.get<bool>("-s"));
     } else if (p.is_used("-G")) {
         rc = get_triplet(ARGS_GET_STR(p, "-G"), 
-            p.get<bool>("-l"), p.get<bool>("-p"));
+            p.is_used("-l"), p.get<bool>("-p"));
     } else if (p.is_used("-R")) {
         for (auto& tag : ARGS_GET_STRVEC(p, "-R")) 
             rc += remove_triplet(tag, p.get<bool>("-f"));
@@ -280,6 +332,9 @@ int CLI::match_args(argparse::ArgumentParser& p)
     } else if (p.is_used("-F")) {
         for (auto& part : ARGS_GET_STRVEC(p, "-F")) 
             rc += find_triplet(part);
+    } else if (p.is_used("-g")) {
+        generate_password(
+            p.get<int>("-l"), p.get<bool>("-nl"), p.get<bool>("-ns"), p.get<bool>("-p"));
     }
 
     return rc;
