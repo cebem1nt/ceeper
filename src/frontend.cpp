@@ -332,6 +332,13 @@ int CLI::generate_token(bool force)
     return 0;
 }
 
+
+int CLI::print_locker(bool is_abs) 
+{
+    println("{}", ceeper_.get_current_locker(is_abs));
+    return 0;
+}
+
 int CLI::match_args(argparse::ArgumentParser& p)
 {
     if (!ceeper_.is_unlocked())
@@ -339,49 +346,50 @@ int CLI::match_args(argparse::ArgumentParser& p)
 
     int rc = 0;
 
-    if (p.is_used("-A")) {
-        auto tag = ARGS_GET_STR(p, "-A");
-
-        if (p.is_used("-g"))
-            rc = gen_and_add_triplet(tag, 
-                p.get<int>("-l"), 
-                p.get<bool>("-nl"), 
-                p.get<bool>("-ns"), 
-                p.get<bool>("-p")
-            );
-        else
-            rc = add_triplet(tag, p.get<bool>("-s"));
-    } else if (p.is_used("-G")) {
-        rc = get_triplet(ARGS_GET_STR(p, "-G"), 
-            p.is_used("-l"), p.get<bool>("-p"));
-    } else if (p.is_used("-R")) {
-        for (auto& tag : ARGS_GET_STRVEC(p, "-R")) 
-            rc += remove_triplet(tag, p.get<bool>("-f"));
-    } else if (p.is_used("-L")) {
-        rc = list_triplets(p.get<bool>("-n"), 
-                           p.get<bool>("-s"));
-    } else if (p.is_used("-E")) { 
-        for (auto& tag : ARGS_GET_STRVEC(p, "-E")) 
-            rc += edit_triplet(tag);
-    } else if (p.is_used("-F")) {
-        for (auto& part : ARGS_GET_STRVEC(p, "-F")) 
-            rc += find_triplet(part);
-    } else if (p.is_used("-C")) {
-        rc =change_locker(ARGS_GET_STR(p, "-C"), p.get<bool>("-a"));
-    } else if (p.is_used("-g")) {
-        rc = generate_password(
-            p.get<int>("-l"), 
-            p.get<bool>("-nl"), 
-            p.get<bool>("-ns"), 
-            p.get<bool>("-p")
-        );
-    } else if (p.is_used("-c")) {
-        std::println("{}", ceeper_.get_current_locker(p.get<bool>("-a")));
-    } else if (p.is_used("--generate-token")) {
-        rc = generate_token(p.get<bool>("-f"));
+    if (auto tag = p.present("-A")) {
+        return p.is_used("-g")
+            ? gen_and_add_triplet(*tag, p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"))
+            : add_triplet(*tag, p.getb("-s"));
     }
 
-    return rc;
+    if (auto tag = p.present("-G")) {
+        return get_triplet(*tag, p.is_used("-l"), p.getb("-p"));
+    }
+
+    if (p.is_used("-R")) {
+        for (auto& tag : p.getstrv("-R"))
+            rc += remove_triplet(tag, p.getb("-f"));
+        return rc;
+    }
+
+    if (p.is_used("-E")) {
+        for (auto& tag : p.getstrv("-E"))
+            rc += edit_triplet(tag);
+        return rc;
+    }
+
+    if (p.is_used("-F")) {
+        for (auto& part : p.getstrv("-F"))
+            rc += find_triplet(part);
+        return rc;
+    }
+
+    if (p.is_used("-L"))
+        return list_triplets(p.getb("-n"), p.getb("-s"));
+
+    if (auto dest = p.present("-C"))
+        return change_locker(*dest, p.getb("-a"));
+
+    if (p.is_used("-g"))
+        return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
+
+    if (p.is_used("--generate-token"))
+        return generate_token(p.getb("-f"));
+
+    if (p.is_used("-c"))
+        return print_locker(p.getb("-a"));
+
+    return 0;
 }
 
 int CLI::interactive_cli(argparse::ArgumentParser& p) 
@@ -390,11 +398,22 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
 }
 
 int CLI::main(argparse::ArgumentParser& p, bool is_interactive) 
-{
-    // TODO events
-
+{    
     if (is_interactive)
         return interactive_cli(p);
+
+    // These can be executed without auth
+    if (p.is_used("--generate-token"))
+        return generate_token(p.getb("-f")); 
+    
+    if (auto dest = p.present("-C"))
+        return change_locker(*dest, p.getb("-a"));
+    
+    if (p.is_used("-c"))
+        return print_locker(p.getb("-a"));
+    
+    if (p.is_used("-g") && !p.is_used("-A"))
+        return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     return match_args(p);
 }

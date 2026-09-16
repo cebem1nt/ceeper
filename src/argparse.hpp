@@ -1556,7 +1556,7 @@ private:
         return any_cast_container<T>(m_values);
       }
     }
-
+    
     throw std::logic_error("No value provided for '" + m_names.back() + "'.");
   }
 
@@ -1923,6 +1923,18 @@ public:
       throw std::logic_error("Nothing parsed, no arguments are available.");
     }
     return (*this)[arg_name].get<T>();
+  }
+
+  bool getb(std::string_view arg_name) const { 
+    return get<bool>(arg_name);
+  }
+
+  int geti(std::string_view arg_name) const { 
+    return get<int>(arg_name);
+  }
+
+  std::vector<std::string> getstrv(std::string_view arg_name) const { 
+    return get<std::vector<std::string>>(arg_name);
   }
 
   /* Getter for options without default values.

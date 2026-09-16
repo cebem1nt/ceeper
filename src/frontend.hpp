@@ -67,6 +67,10 @@ public:
         bool force = false
     );
 
+    int print_locker(
+        bool is_abs = false
+    );
+
     int match_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
     int main(argparse::ArgumentParser& p, bool is_interactive = false);
