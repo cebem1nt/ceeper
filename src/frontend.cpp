@@ -354,6 +354,19 @@ int CLI::match_args(argparse::ArgumentParser& p)
     if (p.is_used("-h"))
         return 0;
 
+    // These can be executed without auth
+    if (p.is_used("--generate-token"))
+        return generate_token(p.getb("-f")); 
+    
+    if (auto dest = p.present("-C"))
+        return change_locker(*dest, p.getb("-a"));
+    
+    if (p.is_used("-c"))
+        return print_locker(p.getb("-a"));
+    
+    if (p.is_used("-g") && !p.is_used("-A"))
+        return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
+
     if (!ceeper_.is_unlocked())
         auth();
 
@@ -389,18 +402,6 @@ int CLI::match_args(argparse::ArgumentParser& p)
 
     if (p.is_used("-L"))
         return list_triplets(p.getb("-n"), p.getb("-s"));
-
-    if (auto dest = p.present("-C"))
-        return change_locker(*dest, p.getb("-a"));
-
-    if (p.is_used("-g"))
-        return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
-
-    if (p.is_used("--generate-token"))
-        return generate_token(p.getb("-f"));
-
-    if (p.is_used("-c"))
-        return print_locker(p.getb("-a"));
 
     return 0;
 }
@@ -449,19 +450,6 @@ int CLI::main(argparse::ArgumentParser& p, bool is_interactive)
 {    
     if (is_interactive)
         return interactive_cli(p);
-
-    // These can be executed without auth
-    if (p.is_used("--generate-token"))
-        return generate_token(p.getb("-f")); 
-    
-    if (auto dest = p.present("-C"))
-        return change_locker(*dest, p.getb("-a"));
-    
-    if (p.is_used("-c"))
-        return print_locker(p.getb("-a"));
-    
-    if (p.is_used("-g") && !p.is_used("-A"))
-        return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     return match_args(p);
 }

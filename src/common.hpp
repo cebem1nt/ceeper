@@ -71,9 +71,24 @@ template <class... Args>
 std::string getpasswd(std::format_string<Args...> prompt, Args&&... args)
 {
     toggle_stdin_echo(false);
-    auto out = input(prompt, std::forward<Args>(args)...);
-    toggle_stdin_echo(true);
 
+    auto formatted = std::format(prompt, std::forward<Args>(args)...);
+    std::string out;
+
+#ifdef __linux__
+    char* line = readline(formatted.c_str()); 
+
+    if (!line)
+        return {};
+
+    out = std::string(line);
+    free(line);
+#else
+    std::cout << formatted;
+    std::getline(std::cin, out);
+#endif
+
+    toggle_stdin_echo(true);
     return out;
 }
 

@@ -94,7 +94,7 @@ std::string Ceeper::generate_password(uint length, bool no_letters,
 {
     const std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const std::string digits = "0123456789";
-    const std::string special_symbols = R"(!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)";
+    const std::string special_symbols = R"(!"#$%&'()*+,-./:;<=>?@[]^_`{|}~)";
 
     std::string chars;
 
