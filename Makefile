@@ -1,6 +1,8 @@
+# TODO build aint crossplatform :(
+
 CXX           = clang++
 CXXFLAGS      = -Wall -Wextra -std=c++23
-LFLAGS	      = -lcrypto
+LFLAGS	      = -lcrypto -lreadline
 
 SRCS          = $(wildcard src/*.cpp)
 OBJS          = $(SRCS:src/%.cpp=build/%.o)

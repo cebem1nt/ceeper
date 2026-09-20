@@ -7,9 +7,9 @@
 #   include <unistd.h>
 #endif
 
-#include <iostream>
 #include <random>
 #include <algorithm>
+#include <sstream>
 
 // https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
 void toggle_stdin_echo(bool enable) 
@@ -43,14 +43,6 @@ void toggle_stdin_echo(bool enable)
 #endif
 }
 
-std::string input()
-{
-    std::string out;
-    std::getline(std::cin, out);
-    std::cout << '\n';
-    return out;
-}
-
 std::string to_lower(std::string in) 
 {
     std::transform(in.begin(), in.end(), in.data(), ::tolower);
@@ -68,8 +60,32 @@ std::string trim_whitespace(std::string in)
 
     if (begin >= end) 
         return {};
-    
+
     return std::string(begin, end);
+}
+
+std::vector<std::string> splitstr(const std::string& in, const char delim) 
+{
+    auto ss = std::stringstream(in);
+    std::vector<std::string> out;
+
+    std::string tok;
+
+    while (std::getline(ss, tok, delim)) {
+        out.push_back(tok);        
+    }
+
+    return out;
+}
+
+std::string input() 
+{
+    return input("");
+}
+
+std::string getpasswd() 
+{
+    return getpasswd("");
 }
 
 std::vector<uchar> urandom(uint nbytes) 

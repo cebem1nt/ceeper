@@ -5,9 +5,19 @@
 
 #include <iostream>
 #include <print>
+#include <unistd.h>
 
 #define ARGS_GET_STRVEC(p, flag) p.get<std::vector<std::string>>(flag)
 #define ARGS_GET_STR(p, flag) p.get<std::string>(flag)
+
+static void clear_screen() 
+{
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif  
+} 
 
 using std::println;
 
@@ -38,7 +48,7 @@ void CLI::registrate()
     if (!ceeper_.token_exists())
         welcome();
 
-    println("\nCurrent locker: {}", ceeper_.get_current_locker());
+    println("Current locker: {}", ceeper_.get_current_locker());
 
     while (true) {
         auto passwd = getpasswd("Create passphrase for the locker: ");
@@ -73,7 +83,7 @@ void CLI::login()
             else
                 println("Incorrect passphrase, try again!");
         } catch (exc::NotInitialized& e) {
-            println("You dont have a token yet. Generate it by 'ceeper generate-token' or set it manually to {}", 
+            println("You dont have a token yet. Generate it by 'ceeper --generate-token' or set it manually to {}", 
                     ceeper_.token_file_.string());
 
             exit(1); // TODO see how handle exits correctly in interactive mode
@@ -341,6 +351,9 @@ int CLI::print_locker(bool is_abs)
 
 int CLI::match_args(argparse::ArgumentParser& p)
 {
+    if (p.is_used("-h"))
+        return 0;
+
     if (!ceeper_.is_unlocked())
         auth();
 
@@ -394,7 +407,42 @@ int CLI::match_args(argparse::ArgumentParser& p)
 
 int CLI::interactive_cli(argparse::ArgumentParser& p) 
 {
-    std::unreachable();
+    auto currnet_locker = ceeper_.get_current_locker(); // We need this to know when to re-auth
+
+    while (true) {
+        if (currnet_locker != ceeper_.get_current_locker() || ceeper_.is_new_locker()) {
+            currnet_locker = ceeper_.get_current_locker();
+            auth();
+        }
+
+        const auto cmd = trim_whitespace(input(">> "));
+
+        if (cmd.empty())
+            continue;
+
+        if (cmd == "quit" || cmd == "exit") {
+            println("Exiting...");
+            break;
+        } 
+        
+        if (cmd == "clear")
+            clear_screen();
+
+        auto args = splitstr(cmd);
+        args.insert(args.begin(), "program");
+
+        try {
+            p.wipe();
+            p.parse_args(args);
+        } catch (const std::exception& err) {
+            println("{}", err.what());
+            continue;
+        }
+
+        match_args(p);
+    }
+
+    return 0;
 }
 
 int CLI::main(argparse::ArgumentParser& p, bool is_interactive) 

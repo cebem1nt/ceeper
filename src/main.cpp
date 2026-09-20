@@ -61,16 +61,15 @@ int main(int argc, char** argv)
 
     auto frontend = CLI(ceeper);
 
-    if (argc > 0) {
-        try {
-            p.parse_args(argc, argv);
-        } catch (const std::exception& err) {
-            std::cerr << err.what() << std::endl;
-            return 1;
-        }
+    if (argc == 1)
+        return frontend.main(p, true); // interactive mode
 
-        return frontend.main(p);
+    try {
+        p.parse_args(argc, argv);
+    } catch (const std::exception& err) {
+        std::cerr << err.what() << std::endl;
+        return 1;
     }
 
-    return frontend.main(p, true); // interactive mode
+    return frontend.main(p);
 }

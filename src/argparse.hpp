@@ -813,6 +813,11 @@ public:
     return *this;
   }
 
+  void reset() {  
+    m_values.clear();  
+    m_is_used = false;  
+  }
+
   // Cause the argument to be invisible in usage and help
   auto &hidden() {
     m_is_hidden = true;
@@ -1638,24 +1643,11 @@ public:
           .action([&](const auto & /*unused*/) {
             os << help().str();
             if (m_exit_on_default_arguments) {
-              std::exit(0);
+              ;
             }
           })
           .default_value(false)
           .help("shows help message and exits")
-          .implicit_value(true)
-          .nargs(0);
-    }
-    if ((add_args & default_arguments::version) == default_arguments::version) {
-      add_argument("-v", "--version")
-          .action([&](const auto & /*unused*/) {
-            os << m_version << std::endl;
-            if (m_exit_on_default_arguments) {
-              std::exit(0);
-            }
-          })
-          .default_value(false)
-          .help("prints version information and exits")
           .implicit_value(true)
           .nargs(0);
     }
@@ -1877,6 +1869,13 @@ public:
                                  "is required");
       }
     }
+  }
+
+  void wipe() {  
+    for (auto &arg : m_positional_arguments) arg.reset();  
+    for (auto &arg : m_optional_arguments) arg.reset();  
+    for (auto &[name, used] : m_subparser_used) used = false;  
+    m_is_parsed = false;  
   }
 
   /* Call parse_known_args_internal - which does all the work
