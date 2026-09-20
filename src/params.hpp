@@ -40,6 +40,6 @@ constexpr const char* BACKEND = "AES"; // or fernet
 const bool IS_PORTABLE_BUILD = false; // TODO test this
 
 // Extensions that are included in build. Leave list empty to disable any
-// TODO active_extensions = ['GitManager']
+constexpr const char* EXTENSIONS[] = { "GitManager" };
 
 } // namespace params

@@ -124,5 +124,6 @@ namespace exc {
     class DecryptionError: public Exception { using Exception::Exception; };
     class AlreadyExists  : public Exception { using Exception::Exception; };
     class NotFound       : public Exception { using Exception::Exception; };
+    class NotImplemented : public Exception { using Exception::Exception; };
 
 } // namespace exc;

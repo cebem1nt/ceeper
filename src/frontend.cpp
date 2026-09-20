@@ -10,6 +10,8 @@
 #define ARGS_GET_STRVEC(p, flag) p.get<std::vector<std::string>>(flag)
 #define ARGS_GET_STR(p, flag) p.get<std::string>(flag)
 
+using std::println;
+
 static void clear_screen() 
 {
 #ifdef _WIN32
@@ -17,9 +19,7 @@ static void clear_screen()
 #else
     system("clear");
 #endif  
-} 
-
-using std::println;
+}
 
 void print_triplet(const ceeper::Triplet& t, bool show_password = false) 
 {
@@ -448,8 +448,14 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
 
 int CLI::main(argparse::ArgumentParser& p, bool is_interactive) 
 {    
-    if (is_interactive)
-        return interactive_cli(p);
+    ceeper_.trigger_event("init");
+    int rc = 0;
 
-    return match_args(p);
+    if (is_interactive)
+        rc = interactive_cli(p);
+    else
+        rc = match_args(p);
+    
+    ceeper_.trigger_event("exit");
+    return rc;
 }

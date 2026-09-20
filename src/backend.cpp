@@ -4,6 +4,39 @@
 
 using namespace ceeper;
 
+void EventManager::subscribe(const std::string& event, 
+                             std::function<void()> fn, bool is_async)
+{
+    EventHandler handler {
+        .fn = fn, 
+        .is_async = is_async
+    };
+
+    events_[event].push_back(handler);
+}
+
+void EventManager::trigger_event(const std::string& event) 
+{
+    if (!events_.contains(event))
+        return;
+
+    for (const auto& handler : events_[event]) {
+        if (handler.is_async) {
+            pending_threads_.emplace_back(handler.fn);
+        } else {
+            handler.fn();
+        }
+    }
+}
+
+EventManager::~EventManager()
+{
+    for (auto& t : pending_threads_) {
+        if (t.joinable())
+            t.join();
+    }
+}
+
 bool Ceeper::unlock(const std::string& passphrase) 
 {
     auto token = get_token();
@@ -65,12 +98,13 @@ void Ceeper::store_triplet(ceeper::Triplet t)
 {
     auto encrypted = encrypt_triplet(t);
     append_line_to_locker(hash(t[0]), encrypted);
-    // TODO events
+    trigger_event("store");
 }
 
 void Ceeper::remove_triplet(const std::string& tag)
 {
     remove_line_from_locker(hash(tag));
+    trigger_event("remove");
 }
 
 void Ceeper::edit_triplet(const std::string& tag, int property, std::string value) 

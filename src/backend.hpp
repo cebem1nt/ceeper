@@ -3,11 +3,37 @@
 #include "filesystem.hpp"
 #include "cryptography.hpp"
 
+#include <functional>
 #include <optional>
+#include <unordered_map>
+#include <thread>
+
+struct EventHandler {
+    std::function<void()> fn;
+    bool is_async;
+};
+
+class EventManager 
+{
+public:
+    ~EventManager();
+
+    void subscribe(const std::string& event, 
+        std::function<void()> fn, bool is_async);
+
+    void trigger_event(const std::string& event);
+
+    std::unordered_map<std::string,
+        std::vector<EventHandler>> events_ = {};
+
+private:
+    std::vector<std::thread> pending_threads_ = {};
+};
 
 class Ceeper:
     public FileSystem,
-    private CryptographySystem
+    private CryptographySystem,
+    public EventManager
 {
 public:
     Ceeper(
