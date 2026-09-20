@@ -9,6 +9,17 @@
 #define DERIVE_KEY_LENGTH 32
 #define AES_IV_LENGTH     16 // AES initial vector
 
+// Python fernet format:
+// version : timestamp : iv : ciphertext : hmac
+//    1          8       16                 32
+
+#define FERNET_VERSION          0x80
+#define FERNET_IV_LENGTH        16
+#define FERNET_TIMESTAMP_SIZE   8
+#define FERNET_HMAC_SIZE        32
+#define FERNET_METAINFO_SIZE    \
+    (1 + FERNET_TIMESTAMP_SIZE + FERNET_IV_LENGTH + FERNET_HMAC_SIZE)
+
 class ACryptographyBackend 
 {
 public:
@@ -53,9 +64,27 @@ public:
     std::string decrypt(const std::string& data) override;
 };
 
+// https://github.com/Anthony-J-Garot/fernet_for_cpp/blob/main/fernet.cpp
 class FernetBackend 
-    : ACryptographyBackend 
+    : public ACryptographyBackend 
 {
+public:
+    FernetBackend(int iterations):
+        ACryptographyBackend(iterations) {}
+
+    void init_cipher(
+        const std::string& passphrase, 
+        const std::string& salt, 
+        const std::string& token
+    ) override;
+
+    std::string encrypt(const std::string& data) override;
+    std::string decrypt(const std::string& data) override;
+
+private:
+    std::string encoded_key_;
+    std::vector<uchar> signing_key_;
+    std::vector<uchar> encryption_key_;
 };
 
 class CryptographySystem 

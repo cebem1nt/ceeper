@@ -192,12 +192,8 @@ void FileSystem::change_locker_dir(fs::path dir, bool same_ok,
     else
         dest = storage_dir_ / dir;
 
-    if (!fs::exists(dest)) {
-        if (dest == default_locker_file_)
-            create_file(default_locker_file_);
-        else
-            throw exc::FileNotFound("Could not find locker file!");
-    }
+    if (!fs::exists(dest))
+        create_file(dest);
 
     if (fs::is_directory(dest))
         throw exc::AsertionFailed("Argument is a directory!");

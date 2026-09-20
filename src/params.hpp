@@ -28,7 +28,7 @@ const unsigned int SALT_SIZE = 16;
  * Encryption backend to use, each backend encrypts passwords in different way
  * Passwords encrypted with fernet backend wont be decrypted with AES one
  */
-constexpr const char* BACKEND = "AES"; // TODO or fernet
+constexpr const char* BACKEND = "AES"; // or fernet
 
 /*
  * Portable build. Will look for token, lokers in the 
