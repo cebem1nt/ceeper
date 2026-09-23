@@ -1,6 +1,6 @@
-#include "frontend.hpp"
+#include "../include/clipcpy.hpp"
 
-#include "clipcpy.hpp"
+#include "frontend.hpp"
 #include "common.hpp"
 
 #include <csignal>
@@ -16,7 +16,7 @@ static void clear_screen()
     system("cls");
 #else
     system("clear");
-#endif  
+#endif
 }
 
 static void on_sigint(int)
@@ -24,6 +24,17 @@ static void on_sigint(int)
     // It is a big pain in the ass to correctly handle SIGINT in interactive prompt
     // AND triger "exit" event, so we'll just kindly ask to type quit
     println("Type -q or quit to exit");
+    rl_on_new_line(); // Regenerate the prompt on a newline
+    rl_replace_line("", 0); // Clear the previous text
+    rl_redisplay();
+}
+
+static void setup_signals() 
+{
+// TODO is windows alternative needed?
+#ifndef _WIN32
+    std::signal(SIGINT, on_sigint);
+#endif
 }
 
 void print_triplet(const ceeper::Triplet& t, bool show_password = false) 
@@ -413,6 +424,7 @@ int CLI::handle_args(argparse::ArgumentParser& p)
 
 int CLI::interactive_cli(argparse::ArgumentParser& p) 
 {
+    setup_signals();
     auto currnet_locker = ceeper_.get_current_locker(); // We need this to know when to re-auth
 
     while (true) {
@@ -456,7 +468,6 @@ int CLI::main(int argc, char** argv)
     argparse::ArgumentParser p(argv[0]);
     auto& mode = p.add_mutually_exclusive_group();
     
-    std::signal(SIGINT, on_sigint);
     // modes
 
     mode.add_argument("-A").help("Add a new triplet with given TAG")

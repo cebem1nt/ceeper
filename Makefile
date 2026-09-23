@@ -8,7 +8,7 @@ SRCS          = $(wildcard src/*.cpp)
 OBJS          = $(SRCS:src/%.cpp=build/%.o)
 
 ARGPARSE 	  = build/argparse.hpp.pch
-ARGPARSE_SRC  = src/argparse.hpp
+ARGPARSE_SRC  = include/argparse.hpp
 
 .PHONY: all run clean build/prepare
 

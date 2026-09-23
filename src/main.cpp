@@ -1,7 +1,7 @@
-#include "params.hpp"
-
 #include "frontend.hpp"
 #include "extensions.hpp"
+
+#include "../params.hpp"
 
 int main(int argc, char** argv)
 {
@@ -22,6 +22,5 @@ int main(int argc, char** argv)
     }
 
     auto frontend = CLI(ceeper);
-
     return frontend.main(argc, argv);
 }

@@ -37,9 +37,11 @@ constexpr const char* BACKEND = "AES"; // or fernet
  * .lk files should be in <keeper_dir>/storage
  * Where keper_dir is the location where executable is located
  */
-const bool IS_PORTABLE_BUILD = false; // TODO test this
+const bool IS_PORTABLE_BUILD = false;
 
-// Extensions that are included in build. Leave list empty to disable any
-constexpr const char* EXTENSIONS[] = { "GitManager" };
+// Extensions included in build. Leave list empty to disable any
+constexpr const char* EXTENSIONS[] = { 
+    "GitManager" 
+};
 
 } // namespace params

@@ -1,5 +1,6 @@
+#include "../include/argparse.hpp"
+
 #include "backend.hpp"
-#include "argparse.hpp"
 
 class CLI
 {
