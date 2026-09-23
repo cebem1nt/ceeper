@@ -7,11 +7,20 @@
 
 #elif defined(__APPLE__)
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__ANDROID__)
 
 inline bool clipcpy(const std::string& text) 
 {
     FILE* f = nullptr;
+
+    if (std::getenv("TERMUX_VERSION") != nullptr) {
+        // Termux (requires termux api)
+        if ((f = popen("termux-clipboard-set", "w"))) {  
+            fwrite(text.data(), 1, text.size(), f);
+            pclose(f);
+            return true;
+        }
+    }
 
     auto is_wayland = []() {
         return std::getenv("WAYLAND_DISPLAY") != nullptr ||
