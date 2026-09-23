@@ -71,9 +71,9 @@ public:
         bool is_abs = false
     );
 
-    int match_args(argparse::ArgumentParser& p);
+    int handle_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
-    int main(argparse::ArgumentParser& p, bool is_interactive = false);
+    int main(int argc, char** argv);
 
 private:
     Ceeper& ceeper_;

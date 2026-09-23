@@ -42,7 +42,9 @@ public:
     ) 
     : FileSystem(salt_size, token_size, std::filesystem::path(program_name).parent_path(), is_portable), 
       CryptographySystem(iterations, backend)
-    {}
+    {
+        trigger_event("init");
+    }
 
     bool unlock(const std::string& passphrase);
 

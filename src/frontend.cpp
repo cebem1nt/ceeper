@@ -3,12 +3,10 @@
 #include "clipcpy.hpp"
 #include "common.hpp"
 
+#include <csignal>
 #include <iostream>
 #include <print>
 #include <unistd.h>
-
-#define ARGS_GET_STRVEC(p, flag) p.get<std::vector<std::string>>(flag)
-#define ARGS_GET_STR(p, flag) p.get<std::string>(flag)
 
 using std::println;
 
@@ -19,6 +17,13 @@ static void clear_screen()
 #else
     system("clear");
 #endif  
+}
+
+static void on_sigint(int)
+{
+    // It is a big pain in the ass to correctly handle SIGINT in interactive prompt
+    // AND triger "exit" event, so we'll just kindly ask to type quit
+    println("Type -q or quit to exit");
 }
 
 void print_triplet(const ceeper::Triplet& t, bool show_password = false) 
@@ -349,7 +354,7 @@ int CLI::print_locker(bool is_abs)
     return 0;
 }
 
-int CLI::match_args(argparse::ArgumentParser& p)
+int CLI::handle_args(argparse::ArgumentParser& p)
 {
     if (p.is_used("-h"))
         return 0;
@@ -421,7 +426,7 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
         if (cmd.empty())
             continue;
 
-        if (cmd == "quit" || cmd == "exit") {
+        if (cmd == "quit" || cmd == "exit" || cmd == "-q" || cmd == "--quit") {
             println("Exiting...");
             break;
         } 
@@ -440,22 +445,80 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
             continue;
         }
 
-        match_args(p);
+        handle_args(p);
     }
 
     return 0;
 }
 
-int CLI::main(argparse::ArgumentParser& p, bool is_interactive) 
-{    
-    ceeper_.trigger_event("init");
+int CLI::main(int argc, char** argv) 
+{
+    argparse::ArgumentParser p(argv[0]);
+    auto& mode = p.add_mutually_exclusive_group();
+    
+    std::signal(SIGINT, on_sigint);
+    // modes
+
+    mode.add_argument("-A").help("Add a new triplet with given TAG")
+        .metavar("TAG");
+
+    mode.add_argument("-G").help("get password by TAG")
+        .metavar("TAG");
+
+    mode.add_argument("-R").help("remove triplet / triplets by TAG[s]")
+        .nargs(argparse::nargs_pattern::at_least_one)
+        .metavar("TAG");
+
+    mode.add_argument("-E").help("interactively edit triplet by TAG[s]")
+        .nargs(argparse::nargs_pattern::at_least_one)
+        .metavar("TAG");
+
+    mode.add_argument("-F").help("find triplets by given tag PART[s]")
+        .nargs(argparse::nargs_pattern::at_least_one)
+        .metavar("PART");
+
+    mode.add_argument("-L").help("list triplets").flag();
+
+    mode.add_argument("-C").help("changes current locker file to LOCKER (relative to storage dir by default)")
+        .metavar("LOCKER");
+
+    // Arguments / flags
+
+    p.add_argument("-p", "--print").flag()
+        .help("print to stdout instead of copying");
+
+    p.add_argument("-l")
+        .nargs(argparse::nargs_pattern::optional).scan<'i', int>().default_value(16)
+        .help("when using -G: return login instead of password. "
+              "when using --gen, treat as length for generated password");
+
+    p.add_argument("-s", "--show")       .help("do not hide passwords").flag();
+    p.add_argument("-n", "--num")        .help("show number of stored passwords").flag();
+    p.add_argument("-c", "--current")    .help("print current locker path").flag();
+    p.add_argument("-f", "--force")      .help("force action, don't prompt for confirmation").flag();
+    p.add_argument("-a", "--absolute")   .help("treat given locker paths as non relative to storage dir").flag();
+
+    p.add_argument("-g",  "--gen")       .help("generate a password and copy it, if used with -A, store newly generated password").flag();
+    p.add_argument("-nl", "--no-letters").help("generate a password without any letters.").flag();
+    p.add_argument("-ns", "--no-symbols").help("generate a password without any special symbols.").flag();
+
+    p.add_argument("--generate-token")   .help("generate a new token").flag();
+
     int rc = 0;
 
-    if (is_interactive)
-        rc = interactive_cli(p);
-    else
-        rc = match_args(p);
-    
+    if (argc == 1)
+        rc = interactive_cli(p); // interactive mode
+    else {
+        try {
+            p.parse_args(argc, argv);
+        } catch (const std::exception& err) {
+            std::cerr << err.what() << std::endl;
+            return 1;
+        }
+
+        rc = handle_args(p);
+    }
+
     ceeper_.trigger_event("exit");
     return rc;
 }

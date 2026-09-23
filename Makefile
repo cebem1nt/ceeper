@@ -12,7 +12,7 @@ ARGPARSE_SRC  = src/argparse.hpp
 
 .PHONY: all run clean build/prepare
 
-all: build/ceeper
+all: build/cee
 
 build/prepare:
 	mkdir -p build
@@ -23,11 +23,11 @@ $(ARGPARSE): $(ARGPARSE_SRC) | build/prepare
 build/%.o: src/%.cpp $(ARGPARSE) | build/prepare
 	$(CXX) $(CXXFLAGS) -include $(ARGPARSE_SRC) -c $< -o $@
 
-build/ceeper: build/prepare $(OBJS)
+build/cee: build/prepare $(OBJS)
 	$(CXX) $(OBJS) $(LFLAGS) -o $@
 
-run: build/ceeper
-	./build/ceeper
+run: build/cee
+	./build/cee
 
 clean:
 	rm -rf build/
