@@ -19,6 +19,17 @@ static std::vector<std::unique_ptr<argparse::ArgumentParser>> ALIAS_STORAGE;
         parser.add_subparser(ap);                                                       \
     }
 
+static argparse::ArgumentParser* get_subparser(argparse::ArgumentParser& parser,
+                                               std::vector<std::string> names) 
+{
+    for (auto& name : names) {
+        if (parser.is_subcommand_used(name))
+            return &parser.at<argparse::ArgumentParser>(name);
+    }
+
+    return nullptr;
+}
+
 using std::println;
 
 static void clear_screen() 
@@ -377,20 +388,17 @@ int CLI::print_locker(bool is_abs)
 
 int CLI::handle_args(argparse::ArgumentParser& p)
 {
-    if (p.is_used("-h"))
-        return 0;
-
     // These can be executed without auth
     if (p.is_used("--generate-token"))
         return generate_token(p.getb("-f")); 
     
-    if (auto dest = p.present("-C"))
-        return change_locker(*dest, p.getb("-a"));
-    
     if (p.is_used("-c"))
         return print_locker(p.getb("-a"));
+
+    if (auto* subp = get_subparser(p, {"change", "ch", "c"}))
+        return change_locker(subp->get("locker"), p.getb("-a"));
     
-    if (p.is_used("-g") && !p.is_used("-A"))
+    if (p.is_used("-g") && !get_subparser(p, {"add", "a"}))
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     if (!ceeper_.is_unlocked())
@@ -398,36 +406,37 @@ int CLI::handle_args(argparse::ArgumentParser& p)
 
     int rc = 0;
 
-    if (auto tag = p.present("-A")) {
+    if (auto* subp = get_subparser(p, {"add", "a"})) {
+        auto tag = subp->get("tag");
         return p.is_used("-g")
-            ? gen_and_add_triplet(*tag, p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"))
-            : add_triplet(*tag, p.getb("-s"));
+                 ? gen_and_add_triplet(tag, p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"))
+                 : add_triplet(tag, p.getb("-s"));
     }
 
-    if (auto tag = p.present("-G")) {
-        return get_triplet(*tag, p.is_used("-l"), p.getb("-p"));
+    if (auto* subp = get_subparser(p, {"get", "g"})) {
+        return get_triplet(subp->get("tag"), subp->getb("-l"), p.getb("-p"));
     }
 
-    if (p.is_used("-R")) {
-        for (auto& tag : p.getstrv("-R"))
+    if (auto* subp = get_subparser(p, {"remove", "rm", "r"})) {
+        for (auto& tag : subp->getstrv("tag"))
             rc += remove_triplet(tag, p.getb("-f"));
         return rc;
     }
 
-    if (p.is_used("-E")) {
-        for (auto& tag : p.getstrv("-E"))
+    if (auto* subp = get_subparser(p, {"edit", "e"})) {
+        for (auto& tag : subp->getstrv("tag"))
             rc += edit_triplet(tag);
         return rc;
     }
 
-    if (p.is_used("-F")) {
-        for (auto& part : p.getstrv("-F"))
+    if (auto* subp = get_subparser(p, {"find", "f"})) {
+        for (auto& part : subp->getstrv("part"))
             rc += find_triplet(part);
         return rc;
     }
 
-    if (p.is_used("-L"))
-        return list_triplets(p.getb("-n"), p.getb("-s"));
+    if (auto* subp = get_subparser(p, {"list", "ls", "l"}))
+        return list_triplets(subp->getb("-n"), p.getb("-s"));
 
     return 0;
 }
@@ -462,8 +471,8 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
         try {
             p.wipe();
             p.parse_args(args);
-        } catch (const std::exception& err) {
-            println("{}", err.what());
+        } catch (std::exception& e) {
+            println("{}", e.what());
             continue;
         }
 
@@ -519,8 +528,7 @@ int CLI::main(int argc, char** argv)
 
     auto change_p = argparse::ArgumentParser("change");
     change_p.add_description("changes current locker file to LOCKER (relative to storage dir by default)");
-    get_p.add_argument("locker").help("new locker file path");
-    get_p.add_argument("-a", "--absolute").help("treat given locker path as non relative to storage dir").flag();
+    change_p.add_argument("locker").help("new locker file path");
     p.add_subparser(change_p);
     ARGPARSE_ADD_ALIAS(change_p, p, {"c", "ch"});
 
@@ -530,6 +538,7 @@ int CLI::main(int argc, char** argv)
     p.add_argument("-s", "--show")       .help("do not hide passwords").flag();
     p.add_argument("-c", "--current")    .help("print current locker path").flag();
     p.add_argument("-f", "--force")      .help("force action, don't prompt for confirmation").flag();
+    p.add_argument("-a", "--absolute")   .help("treat locker paths as non relative to storage dir").flag();
 
     p.add_argument("-g",  "--gen")       .help("generate a password and copy it, if used with -A, store newly generated password").flag();
     p.add_argument("-nl", "--no-letters").help("generate a password without any letters.").flag();
@@ -546,6 +555,9 @@ int CLI::main(int argc, char** argv)
     else {
         try {
             p.parse_args(argc, argv);
+        } catch (argparse::help_exception& e) {
+            println("{}", e.what());
+            return 0;
         } catch (const std::exception& err) {
             std::cerr << err.what() << std::endl;
             return 1;

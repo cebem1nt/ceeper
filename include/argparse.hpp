@@ -578,6 +578,21 @@ std::string get_most_similar_string(const std::map<std::string, ValueType> &map,
 
 } // namespace details
 
+class help_exception
+  : public std::exception 
+{
+public:
+  help_exception(std::string help):
+    m_message(help) {}
+
+  const char* what() const noexcept {
+    return m_message.c_str();
+  }
+
+private:
+  std::string m_message;
+};
+
 enum class nargs_pattern { optional, any, at_least_one };
 
 enum class default_arguments : unsigned int {
@@ -1641,9 +1656,10 @@ public:
     if ((add_args & default_arguments::help) == default_arguments::help) {
       add_argument("-h", "--help")
           .action([&](const auto & /*unused*/) {
-            os << help().str();
             if (m_exit_on_default_arguments) {
-              ;
+              throw help_exception(help().str());
+            } else {
+              os << help().str();
             }
           })
           .default_value(false)
@@ -2247,15 +2263,6 @@ public:
     }
 
     return stream.str();
-  }
-
-  // Printing the one and only help message
-  // I've stuck with a simple message format, nothing fancy.
-  [[deprecated("Use cout << program; instead.  See also help().")]] std::string
-  print_help() const {
-    auto out = help();
-    std::cout << out.rdbuf();
-    return out.str();
   }
 
   void add_subparser(ArgumentParser &parser) {
