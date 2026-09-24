@@ -6,20 +6,23 @@
 #include <iostream>
 
 #if defined (__ANDROID__)
-#   define PLATFORM "Android"
+# define PLATFORM "Android"
 #elif defined (_WIN32)
-#   define PLATFORM "Windows"
+# include <windows.h>
+# define PLATFORM "Windows"
 #elif defined (__APPLE__) || defined (__MACH__)
-#   define PLATFORM "Darwin"
+# define PLATFORM "Darwin"
 #elif defined(__linux__)
-#   define PLATFORM "Posix"
+# define PLATFORM "Posix"
 #else
-#    error Unsupported platform
+# error Unsupported platform
 #endif
 
 #ifdef __linux__
-#   include <readline/readline.h>
-#   include <readline/history.h>
+# include <termios.h>
+# include <unistd.h>
+# include <readline/readline.h>
+# include <readline/history.h>
 #endif
 
 #define FATAL(...) do {                 \
@@ -41,7 +44,36 @@ std::string trim_whitespace(std::string in);
 
 std::vector<std::string> splitstr(const std::string& in, const char delim = ' ');
 
-void toggle_stdin_echo(bool enable = true);
+// https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
+inline void toggle_stdin_echo(bool enable = true) {
+#ifdef _WIN32
+    // Windows Implementation using GetStdHandle and SetConsoleMode
+    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE); 
+    DWORD console_mode;
+    GetConsoleMode(handle, &console_mode);
+
+    if (!enable)
+        console_mode &= ~ENABLE_ECHO_INPUT; // Disable echo
+    else
+        console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
+
+    SetConsoleMode(handle, console_mode);
+
+#else
+    // POSIX/Unix Implementation using termios
+    struct termios ts;
+    // Get current settings
+    tcgetattr(STDIN_FILENO, &ts);
+    
+    if (!enable)
+        ts.c_lflag &= ~ECHO; // Disable echo flag
+    else
+        ts.c_lflag |= ECHO;  // Enable echo flag
+
+    // Apply new settings immediately
+    (void) tcsetattr(STDIN_FILENO, TCSANOW, &ts);
+#endif
+}
 
 template <class... Args>
 std::optional<std::string> input(std::format_string<Args...> prompt, Args&&... args)
@@ -75,6 +107,14 @@ std::optional<std::string> input(std::format_string<Args...> prompt, Args&&... a
     return out;
 }
 
+inline void clear_screen() 
+{
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
 
 // Returns std::nullopt on EOF (ctrl + d)
 template <class... Args>

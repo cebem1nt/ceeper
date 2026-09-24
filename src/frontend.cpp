@@ -11,21 +11,12 @@
 using std::println;
 using nargs = argparse::nargs_pattern;
 
-static void clear_screen() 
-{
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
-}
-
 static void on_sigint(int)
 {
     // It is a big pain in the ass to correctly handle SIGINT in interactive prompt
     // AND triger "exit" event, so we'll just kindly ask to type quit
     if (rl_readline_state & RL_STATE_READCMD) {
-        println("Type quit or exit");
+        println("CTRL+D or 'exit' to exit");
         rl_on_new_line(); // Regenerate the prompt on a newline
         rl_replace_line("", 0); // Clear the previous text
         rl_redisplay();
@@ -51,7 +42,31 @@ void print_triplet(const ceeper::Triplet& t, bool show_password = false)
 
 void CLI::welcome() 
 {
-    println("Yapi, hello world! welcome");
+    clear_screen();
+    println(
+        "          \033[36m/\\ /\\___  \033[35m___ _ __   ___ _ __    \n"
+        "         \033[36m/ //_/ _ \\\033[35m/ _ \\ '_ \\ / _ \\ '__| \n"
+        "        \033[36m/ __ \\  __/\033[35m  __/ |_) |  __/ |       \n"
+        "        \033[36m\\/  \\/\\___|\033[35m\\___| .__/ \\___|_|   \n"
+        "                    \033[35m |_|                             \n"
+        "            \033[0m"
+    );
+
+    println("Keeper is a password manager designed to securely store your passwords locally.");
+    println("Each password file is referred to as a \033[33m\"locker\"\033[0m and has a .lk extension.");
+    println("You can manage multiple lockers, each containing different sets of passwords.");
+    println("Passwords are stored in a triplet format: \033[33mtag/login/password\033[0m.");
+    println("Use the tag to retrieve detailed information about each triplet.");
+    println("Lockers are encrypted with a passphrase and your unique token.");
+    println("If you want to use your lockers on multiple devices, you need the same token.\n");
+
+    println("\033[33m[WARNING!]\033[0m Make sure to remember this passphrase! as losing it");
+    println("means you will not be able to recover your encrypted passwords.\n");
+
+    println("\033[32m[INFO]\033[0m You don't have a token yet. Generate it by \033[4m\"cee --generate-token\"\033[0m");
+    println("or insert your existing token to {}\n", ceeper_.token_file_.string());
+
+    exit(0);
 }
 
 int CLI::auth() 
@@ -375,10 +390,56 @@ int CLI::generate_token(bool force)
     return 0;
 }
 
-
 int CLI::print_locker(bool is_abs) 
 {
     println("{}", ceeper_.get_current_locker(is_abs));
+    return 0;
+}
+
+int CLI::interactive_cli(argparse::ArgumentParser& p) 
+{
+    setup_signals();
+    auto currnet_locker = ceeper_.get_current_locker(); // We need this to know when to re-auth
+
+    while (true) {
+        if (currnet_locker != ceeper_.get_current_locker() || ceeper_.is_new_locker()) {
+            currnet_locker = ceeper_.get_current_locker();
+            auth();
+        }
+
+        auto in = input(">> ");
+        if (!in) // EOF
+            return 0;
+
+        const auto cmd = trim_whitespace(*in);
+
+        if (cmd.empty())
+            continue;
+
+        if (cmd == "quit" || cmd == "exit") {
+            println("Exiting...");
+            break;
+        } 
+        
+        if (cmd == "clear") {
+            clear_screen();
+            continue;
+        }
+
+        auto args = splitstr(cmd);
+        args.insert(args.begin(), "program");
+
+        try {
+            p.wipe();
+            p.parse_args(args);
+        } catch (std::exception& e) {
+            println("{}", e.what());
+            continue;
+        }
+
+        handle_args(p);
+    }
+
     return 0;
 }
 
@@ -434,53 +495,6 @@ int CLI::handle_args(argparse::ArgumentParser& p)
 
     if (auto* s = p.get_subparser({"list", "ls", "l"}))
         return list_triplets(s->getb("-n"), s->getb("-s"));
-
-    return 0;
-}
-
-int CLI::interactive_cli(argparse::ArgumentParser& p) 
-{
-    setup_signals();
-    auto currnet_locker = ceeper_.get_current_locker(); // We need this to know when to re-auth
-
-    while (true) {
-        if (currnet_locker != ceeper_.get_current_locker() || ceeper_.is_new_locker()) {
-            currnet_locker = ceeper_.get_current_locker();
-            auth();
-        }
-
-        auto in = input(">> ");
-        if (!in) // EOF
-            return 0;
-
-        const auto cmd = trim_whitespace(*in);
-
-        if (cmd.empty())
-            continue;
-
-        if (cmd == "quit" || cmd == "exit") {
-            println("Exiting...");
-            break;
-        } 
-        
-        if (cmd == "clear") {
-            clear_screen();
-            continue;
-        }
-
-        auto args = splitstr(cmd);
-        args.insert(args.begin(), "program");
-
-        try {
-            p.wipe();
-            p.parse_args(args);
-        } catch (std::exception& e) {
-            println("{}", e.what());
-            continue;
-        }
-
-        handle_args(p);
-    }
 
     return 0;
 }
@@ -546,6 +560,15 @@ int CLI::main(int argc, char** argv)
     p.add_argument("-ns", "--no-symbols") .help("generate a password without any special symbols.").flag();
     p.add_argument("-l",  "--length")     .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
     p.add_argument("--generate-token")    .help("generate a new token").flag();
+
+    p.add_epilog(
+        "Each password file is referred to as a \033[33m\"locker\"\033[0m and has a .lk extension.\n"
+        "You can manage multiple lockers, each containing different sets of passwords.\n"
+        "Passwords are stored in a triplet format: \033[33mtag/login/password\033[0m.\n"
+        "Use the tag to retrieve detailed information about each triplet.\n"
+        "Lockers are encrypted with a passphrase and your unique token.\n"
+        "If you want to use your lockers on multiple devices, you need the same token."
+    );
 
     int rc = 0;
 

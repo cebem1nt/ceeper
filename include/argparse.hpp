@@ -2089,7 +2089,7 @@ public:
 
     if (!parser.m_epilog.empty()) {
       stream << '\n';
-      stream << parser.m_epilog << "\n\n";
+      stream << parser.m_epilog << "\n";
     }
 
     return stream;
