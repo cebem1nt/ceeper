@@ -48,10 +48,12 @@ bool Ceeper::unlock(const std::string& passphrase)
     try {
         init_cipher(passphrase, salt, token);
         list_triplets();
-        return true;
+        is_unlocked_ = true;
     } catch (const exc::DecryptionError& e) { // Could not decrypt -> mismatching key
         return false;
     }
+
+    return true;
 }
 
 std::vector<Triplet> Ceeper::list_triplets() 
@@ -165,5 +167,5 @@ std::string Ceeper::get_current_locker(bool is_full)
 
 bool Ceeper::is_unlocked() 
 {
-    return cipher_initialized();
+    return cipher_initialized() && is_unlocked_;
 }

@@ -9,9 +9,9 @@ public:
         ceeper_(instance) {};
 
     void welcome();
-    void auth();
-    void registrate();
-    void login();
+    int auth();
+    int registrate();
+    int login();
 
     int add_triplet(
         const std::string& tag,
@@ -61,7 +61,8 @@ public:
 
     int change_locker(
         const std::string& dest,
-        bool is_abs = false
+        bool is_abs = false,
+        bool do_create = false
     );
 
     int generate_token(

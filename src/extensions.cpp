@@ -28,8 +28,10 @@ void GitManager::subscribe()
     if (!fs::exists(git_dir_)) {
         auto create = input(
             "No repo in storage dir found, would you like to create one? [Y/n] ");
+        if (!create)
+            return;
 
-        if (to_lower(create)[0] == 'n')
+        if (to_lower(*create)[0] == 'n')
             return;
 
         init_repo();
@@ -85,13 +87,15 @@ void GitManager::init_repo()
 
     while (true) {
         auto remote = input("Enter remote origin: ");
+        if (!remote)
+            return;
         
-        if (!remote.ends_with(".git")) {
+        if (!remote->ends_with(".git")) {
             std::println("Looks incorrect, try again!");
             continue;
         }
 
-        git("remote add origin {}", remote);
+        git("remote add origin {}", *remote);
         git("push -u origin main");
         break;
     }

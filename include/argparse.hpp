@@ -1891,6 +1891,7 @@ public:
     for (auto &arg : m_positional_arguments) arg.reset();  
     for (auto &arg : m_optional_arguments) arg.reset();  
     for (auto &[name, used] : m_subparser_used) used = false;  
+    for (auto &sp : m_subparsers) sp.get().wipe();
     m_is_parsed = false;  
   }
 
@@ -2272,7 +2273,26 @@ public:
     m_subparser_used.insert_or_assign(parser.m_program_name, false);
   }
 
+  void add_subparser(std::vector<std::string> aliases, ArgumentParser &parser) {
+    add_subparser(parser);
+    for (const auto& alias : aliases) {
+        auto& ap = m_subparsers_alias.emplace_back(std::make_unique<argparse::ArgumentParser>(alias));
+        ap->add_parents(parser);
+        ap->set_suppress(true);
+        add_subparser(*ap);
+    }
+  }
+
   void set_suppress(bool suppress) { m_suppress = suppress; }
+
+  argparse::ArgumentParser *get_subparser(std::vector<std::string> names) {
+      for (auto& name : names) {
+          if (is_subcommand_used(name))
+              return &at<argparse::ArgumentParser>(name);
+      }
+
+      return nullptr;
+  }
 
 protected:
   const MutuallyExclusiveGroup *get_belonging_mutex(const Argument *arg) const {
@@ -2586,6 +2606,7 @@ protected:
   std::map<std::string, argument_it> m_argument_map;
   std::string m_parser_path;
   std::list<std::reference_wrapper<ArgumentParser>> m_subparsers;
+  std::vector<std::unique_ptr<argparse::ArgumentParser>> m_subparsers_alias;
   std::map<std::string, argument_parser_it> m_subparser_map;
   std::map<std::string, bool> m_subparser_used;
   std::vector<MutuallyExclusiveGroup> m_mutually_exclusive_groups;

@@ -38,7 +38,8 @@ public:
     void change_locker_dir(
         std::filesystem::path dir, 
         bool same_ok = false, 
-        bool is_storage_relative = true
+        bool is_storage_relative = true,
+        bool do_create = false
     );
 
     void copy_locker(std::filesystem::path dest);

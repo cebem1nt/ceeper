@@ -78,12 +78,12 @@ std::vector<std::string> splitstr(const std::string& in, const char delim)
     return out;
 }
 
-std::string input() 
+std::optional<std::string> input() 
 {
     return input("");
 }
 
-std::string getpasswd() 
+std::optional<std::string> getpasswd() 
 {
     return getpasswd("");
 }

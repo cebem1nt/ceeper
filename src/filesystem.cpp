@@ -183,7 +183,7 @@ void FileSystem::sync_locker()
 }
 
 void FileSystem::change_locker_dir(fs::path dir, bool same_ok, 
-                                   bool is_storage_relative) 
+                                   bool is_storage_relative, bool do_create) 
 {
     fs::path dest;
     
@@ -192,8 +192,15 @@ void FileSystem::change_locker_dir(fs::path dir, bool same_ok,
     else
         dest = storage_dir_ / dir;
 
-    if (!fs::exists(dest))
-        create_file(dest);
+    if (dest.extension() != ".lk")
+        throw exc::ValueMismatch("Expected an .lk file");
+
+    if (!fs::exists(dest)) {
+        if (dest == default_locker_file_ || do_create)
+            create_file(dest);
+        else
+            throw exc::FileNotFound(".lk file does not exist");    
+    }
 
     if (fs::is_directory(dest))
         throw exc::AsertionFailed("Argument is a directory!");

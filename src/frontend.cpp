@@ -8,28 +8,6 @@
 #include <print>
 #include <unistd.h>
 
-static std::vector<std::unique_ptr<argparse::ArgumentParser>> ALIAS_STORAGE;
-
-#define ARGPARSE_ADD_ALIAS(subparser, parser, ...)                                      \
-    for (const auto& alias : __VA_ARGS__) {                                             \
-        ALIAS_STORAGE.emplace_back(std::make_unique<argparse::ArgumentParser>(alias));  \
-        auto& ap = *ALIAS_STORAGE.back();                                               \
-        ap.add_parents(subparser);                                                      \
-        ap.set_suppress(true);                                                          \
-        parser.add_subparser(ap);                                                       \
-    }
-
-static argparse::ArgumentParser* get_subparser(argparse::ArgumentParser& parser,
-                                               std::vector<std::string> names) 
-{
-    for (auto& name : names) {
-        if (parser.is_subcommand_used(name))
-            return &parser.at<argparse::ArgumentParser>(name);
-    }
-
-    return nullptr;
-}
-
 using std::println;
 
 static void clear_screen() 
@@ -45,10 +23,12 @@ static void on_sigint(int)
 {
     // It is a big pain in the ass to correctly handle SIGINT in interactive prompt
     // AND triger "exit" event, so we'll just kindly ask to type quit
-    println("Type quit or exit");
-    rl_on_new_line(); // Regenerate the prompt on a newline
-    rl_replace_line("", 0); // Clear the previous text
-    rl_redisplay();
+    if (rl_readline_state & RL_STATE_READCMD) {
+        println("Type quit or exit");
+        rl_on_new_line(); // Regenerate the prompt on a newline
+        rl_replace_line("", 0); // Clear the previous text
+        rl_redisplay();
+    }
 }
 
 static void setup_signals() 
@@ -73,15 +53,15 @@ void CLI::welcome()
     println("Yapi, hello world! welcome");
 }
 
-void CLI::auth() 
+int CLI::auth() 
 {
     if (ceeper_.is_new_locker())
-        registrate();
+        return registrate();
     else
-        login();
+        return login();
 }
 
-void CLI::registrate()  
+int CLI::registrate()  
 {
     if (!ceeper_.token_exists())
         welcome();
@@ -90,8 +70,10 @@ void CLI::registrate()
 
     while (true) {
         auto passwd = getpasswd("Create passphrase for the locker: ");
+        if (!passwd)
+            return 1;
 
-        if (passwd.length() <= 5) {
+        if (passwd->length() <= 5) {
             println("Passphrase is too short");
             continue;
         }
@@ -100,24 +82,28 @@ void CLI::registrate()
         
         if (passwd == repeated) {
             println("Passphrase created!"); 
-            ceeper_.unlock(passwd);
-            return;
+            ceeper_.unlock(*passwd);
+            return 0;
         }
 
         println("Passphrases didn't match, try again");
     }
+
+    return 1;
 }
 
-void CLI::login() 
+int CLI::login() 
 {
     auto locker = ceeper_.get_current_locker(false);
 
     while (true) {
         auto passwd = getpasswd("Passphrase: [{}] ", locker);
+        if (!passwd)
+            return 1;
 
         try {
-            if (ceeper_.unlock(passwd))
-                return;
+            if (ceeper_.unlock(*passwd))
+                return 0;
             else
                 println("Incorrect passphrase, try again!");
         } catch (exc::NotInitialized& e) {
@@ -138,12 +124,14 @@ int CLI::add_triplet(const std::string& tag, bool show_password,
 
     println("\nCreating new triplet with tag \"{}\"\n", tag);
     
-    std::string login;
+    std::optional<std::string > login;
 
     while (true) {
         login = input("Enter login: ");
+        if (!login)
+            return 1;
 
-        if (!login.empty())
+        if (!login->empty())
             break;
 
         println("Login can not be empty!");
@@ -156,14 +144,14 @@ int CLI::add_triplet(const std::string& tag, bool show_password,
             else
                 password = getpasswd("Enter the password: ");
 
-            if (!password->empty())
+            if (password && !password->empty())
                 break;
 
             println("Password can not be empty!");
         }
     }
 
-    ceeper_.store_triplet({ tag, login, *password });
+    ceeper_.store_triplet({ tag, *login, *password });
     println("Triplet successfully stored with tag: {}", tag);
     return 0;
 }
@@ -210,7 +198,10 @@ int CLI::remove_triplet(const std::string& tag, bool force)
 
     if (!force) {
         auto choice = input("Remove this triplet? [y/N] ");
-        choice = to_lower(trim_whitespace(choice));
+        if (!choice)
+            return 1;
+
+        choice = to_lower(trim_whitespace(*choice));
         
         if (choice != "y") {
             println("Aboarting..");
@@ -259,9 +250,11 @@ int CLI::edit_triplet(const std::string& tag)
 
     while (true) {
         auto in = input("Enter the parameter to edit (0-2): ");
+        if (!in)
+            return 1;
 
         try {
-            prop = std::stoi(in);
+            prop = std::stoi(*in);
         } catch (...) {
             prop = -1;
         }
@@ -276,9 +269,11 @@ int CLI::edit_triplet(const std::string& tag)
 
     while(true) {
         auto value = input("Enter new value for \"{}\": ", params[prop]);
+        if (!value)
+            return 1;
 
         try {
-            ceeper_.edit_triplet(tag, prop, value);
+            ceeper_.edit_triplet(tag, prop, *value);
             break;
         } catch (exc::AlreadyExists& e) {
             println("{}", e.what());
@@ -350,10 +345,10 @@ int CLI::gen_and_add_triplet(const std::string& tag, uint length, bool no_letter
     return 0;
 }
 
-int CLI::change_locker(const std::string& dest, bool is_abs)
+int CLI::change_locker(const std::string& dest, bool is_abs, bool do_create)
 {
     try {
-        ceeper_.change_locker_dir(std::filesystem::path(dest), false, !is_abs);
+        ceeper_.change_locker_dir(std::filesystem::path(dest), false, !is_abs, do_create);
         println("\nSuccesfuly changed current locker to: {}\n", dest);
     } catch (exc::Exception& e) {
         println("{}", e.what());
@@ -395,47 +390,48 @@ int CLI::handle_args(argparse::ArgumentParser& p)
     if (p.is_used("-c"))
         return print_locker(p.getb("-a"));
 
-    if (auto* subp = get_subparser(p, {"change", "ch", "c"}))
-        return change_locker(subp->get("locker"), p.getb("-a"));
+    if (auto* subp = p.get_subparser({"change", "ch", "c"}))
+        return change_locker(subp->get("locker"), p.getb("-a"), subp->getb("-m"));
     
-    if (p.is_used("-g") && !get_subparser(p, {"add", "a"}))
+    if (p.is_used("-g") && !p.get_subparser({"add", "a"}))
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
-
-    if (!ceeper_.is_unlocked())
-        auth();
 
     int rc = 0;
 
-    if (auto* subp = get_subparser(p, {"add", "a"})) {
+    if (!ceeper_.is_unlocked())
+        if (auth() != 0)
+            return 1;
+    
+    if (auto* subp = p.get_subparser({"add", "a"})) {
         auto tag = subp->get("tag");
         return p.is_used("-g")
                  ? gen_and_add_triplet(tag, p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"))
                  : add_triplet(tag, p.getb("-s"));
     }
 
-    if (auto* subp = get_subparser(p, {"get", "g"})) {
+    if (auto* subp = p.get_subparser({"get", "g"})) {
         return get_triplet(subp->get("tag"), subp->getb("-l"), p.getb("-p"));
     }
 
-    if (auto* subp = get_subparser(p, {"remove", "rm", "r"})) {
+    if (auto* subp = p.get_subparser({"remove", "rm", "r"})) {
         for (auto& tag : subp->getstrv("tag"))
             rc += remove_triplet(tag, p.getb("-f"));
         return rc;
     }
 
-    if (auto* subp = get_subparser(p, {"edit", "e"})) {
+    if (auto* subp = p.get_subparser({"edit", "e"})) {
         for (auto& tag : subp->getstrv("tag"))
             rc += edit_triplet(tag);
         return rc;
     }
 
-    if (auto* subp = get_subparser(p, {"find", "f"})) {
+    if (auto* subp = p.get_subparser({"find", "f"})) {
         for (auto& part : subp->getstrv("part"))
             rc += find_triplet(part);
         return rc;
     }
 
-    if (auto* subp = get_subparser(p, {"list", "ls", "l"}))
+    if (auto* subp = p.get_subparser({"list", "ls", "l"}))
         return list_triplets(subp->getb("-n"), p.getb("-s"));
 
     return 0;
@@ -452,7 +448,11 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
             auth();
         }
 
-        const auto cmd = trim_whitespace(input(">> "));
+        auto in = input(">> ");
+        if (!in) // EOF
+            return 0;
+
+        const auto cmd = trim_whitespace(*in);
 
         if (cmd.empty())
             continue;
@@ -462,8 +462,10 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
             break;
         } 
         
-        if (cmd == "clear")
+        if (cmd == "clear") {
             clear_screen();
+            continue;
+        }
 
         auto args = splitstr(cmd);
         args.insert(args.begin(), "program");
@@ -489,48 +491,42 @@ int CLI::main(int argc, char** argv)
     auto add_p = argparse::ArgumentParser("add");
     add_p.add_description("add a new triplet with given TAG");
     add_p.add_argument("tag").help("tag for new triplet");
-    p.add_subparser(add_p);
-    ARGPARSE_ADD_ALIAS(add_p, p, {"a"});
+    p.add_subparser({"a"}, add_p);
 
     auto get_p = argparse::ArgumentParser("get");
     get_p.add_description("get password by TAG");
     get_p.add_argument("tag").help("tag of the triplet");
     get_p.add_argument("-l", "--login").help("return login instead of password.").flag();
-    p.add_subparser(get_p);
-    ARGPARSE_ADD_ALIAS(get_p, p, {"g"});
+    p.add_subparser({"g"}, get_p);
 
     auto remove_p = argparse::ArgumentParser("remove");
     remove_p.add_description("remove triplet[s] by TAG[s]");
     remove_p.add_argument("tag").help("tag[s] of triplet[s] to remove")
         .nargs(argparse::nargs_pattern::at_least_one);
-    p.add_subparser(remove_p);
-    ARGPARSE_ADD_ALIAS(remove_p, p, {"r", "rm"});
+    p.add_subparser({"r", "rm"}, remove_p);
 
     auto edit_p = argparse::ArgumentParser("edit");
     edit_p.add_description("interactively edit triplet[s] by TAG[s]");
     edit_p.add_argument("tag").help("tag[s] of triplet[s] to edit")
         .nargs(argparse::nargs_pattern::at_least_one);
-    p.add_subparser(edit_p);
-    ARGPARSE_ADD_ALIAS(edit_p, p, {"e"});
+    p.add_subparser({"e"}, edit_p);
 
     auto find_p = argparse::ArgumentParser("find");
     find_p.add_description("look for triplets by given tag PART[s]");
     find_p.add_argument("part").help("part[s] of triplet tag to look for")
         .nargs(argparse::nargs_pattern::at_least_one);
-    p.add_subparser(find_p);
-    ARGPARSE_ADD_ALIAS(find_p, p, {"f"});
+    p.add_subparser({"f"}, find_p);
 
     auto list_p = argparse::ArgumentParser("list");
     list_p.add_description("list triplets");
     list_p.add_argument("-n", "--num").help("show number of stored passwords").flag();
-    p.add_subparser(list_p);
-    ARGPARSE_ADD_ALIAS(list_p, p, {"l", "ls"});
+    p.add_subparser({"l", "ls"}, list_p);
 
     auto change_p = argparse::ArgumentParser("change");
     change_p.add_description("changes current locker file to LOCKER (relative to storage dir by default)");
     change_p.add_argument("locker").help("new locker file path");
-    p.add_subparser(change_p);
-    ARGPARSE_ADD_ALIAS(change_p, p, {"c", "ch"});
+    change_p.add_argument("-m", "--make").help("create locker file if does not exist").flag();
+    p.add_subparser({"c", "ch"}, change_p);
 
     // Arguments / flags
 

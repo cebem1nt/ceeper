@@ -3,6 +3,7 @@
 #include <format>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #if defined (__ANDROID__)
 #   define PLATFORM "Android"
@@ -19,8 +20,6 @@
 #ifdef __linux__
 #   include <readline/readline.h>
 #   include <readline/history.h>
-#else
-#   include <iostream>
 #endif
 
 #define FATAL(...) do {                 \
@@ -45,55 +44,62 @@ std::vector<std::string> splitstr(const std::string& in, const char delim = ' ')
 void toggle_stdin_echo(bool enable = true);
 
 template <class... Args>
-std::string input(std::format_string<Args...> prompt, Args&&... args)
+std::optional<std::string> input(std::format_string<Args...> prompt, Args&&... args)
 {
-    auto formatted = std::format(prompt, std::forward<Args>(args)...);
+    clearerr(stdin);
+    std::cin.clear();
+
     std::string out;
+    auto formatted = std::format(prompt, std::forward<Args>(args)...);
 
 #ifdef __linux__
     char* line = readline(formatted.c_str()); 
 
     if (!line)
-        return {};
+        return std::nullopt;
 
     add_history(line);
     out = std::string(line);
     free(line);
 #else
     std::cout << formatted;
-    std::getline(std::cin, out);
+
+    if (!std::getline(std::cin, out)) {
+        std::cout << "\n";
+        return std::nullopt; 
+    }
+
+    std::cout << "\n";
 #endif
 
     return out;
 }
 
+
+// Returns std::nullopt on EOF (ctrl + d)
 template <class... Args>
-std::string getpasswd(std::format_string<Args...> prompt, Args&&... args)
+std::optional<std::string> getpasswd(std::format_string<Args...> prompt, Args&&... args)
 {
+    clearerr(stdin);
+    std::cin.clear();
+
     toggle_stdin_echo(false);
+    std::cout << std::format(prompt, std::forward<Args>(args)...);
 
-    auto formatted = std::format(prompt, std::forward<Args>(args)...);
     std::string out;
+    if (!std::getline(std::cin, out)) {
+        std::cout << "\n";
+        toggle_stdin_echo(true);
+        return std::nullopt; 
+    }
 
-#ifdef __linux__
-    char* line = readline(formatted.c_str()); 
-
-    if (!line)
-        return {};
-
-    out = std::string(line);
-    free(line);
-#else
-    std::cout << formatted;
-    std::getline(std::cin, out);
-#endif
-
+    std::cout << "\n";
     toggle_stdin_echo(true);
     return out;
 }
 
-std::string input();
-std::string getpasswd();
+std::optional<std::string> input();
+std::optional<std::string> getpasswd();
 
 namespace ceeper {
     // 0 - Tag, 1 - Login, 2 - Password

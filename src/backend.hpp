@@ -63,4 +63,7 @@ public:
     bool is_unlocked();
 
     std::string get_current_locker(bool is_full = true);
+    
+private:
+    bool is_unlocked_ = false;
 };
