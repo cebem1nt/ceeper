@@ -8,6 +8,17 @@
 #include <print>
 #include <unistd.h>
 
+static std::vector<std::unique_ptr<argparse::ArgumentParser>> ALIAS_STORAGE;
+
+#define ARGPARSE_ADD_ALIAS(subparser, parser, ...)                                      \
+    for (const auto& alias : __VA_ARGS__) {                                             \
+        ALIAS_STORAGE.emplace_back(std::make_unique<argparse::ArgumentParser>(alias));  \
+        auto& ap = *ALIAS_STORAGE.back();                                               \
+        ap.add_parents(subparser);                                                      \
+        ap.set_suppress(true);                                                          \
+        parser.add_subparser(ap);                                                       \
+    }
+
 using std::println;
 
 static void clear_screen() 
@@ -23,7 +34,7 @@ static void on_sigint(int)
 {
     // It is a big pain in the ass to correctly handle SIGINT in interactive prompt
     // AND triger "exit" event, so we'll just kindly ask to type quit
-    println("Type -q or quit to exit");
+    println("Type quit or exit");
     rl_on_new_line(); // Regenerate the prompt on a newline
     rl_replace_line("", 0); // Clear the previous text
     rl_redisplay();
@@ -99,10 +110,9 @@ void CLI::login()
             else
                 println("Incorrect passphrase, try again!");
         } catch (exc::NotInitialized& e) {
-            println("You dont have a token yet. Generate it by 'ceeper --generate-token' or set it manually to {}", 
+            println("You dont have a token yet. Generate it with --generate-token or set it manually to {}", 
                     ceeper_.token_file_.string());
-
-            exit(1); // TODO see how handle exits correctly in interactive mode
+            exit(1);
         }
     }
 }
@@ -438,7 +448,7 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
         if (cmd.empty())
             continue;
 
-        if (cmd == "quit" || cmd == "exit" || cmd == "-q" || cmd == "--quit") {
+        if (cmd == "quit" || cmd == "exit") {
             println("Exiting...");
             break;
         } 
@@ -465,53 +475,67 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
 
 int CLI::main(int argc, char** argv) 
 {
-    argparse::ArgumentParser p(argv[0]);
-    auto& mode = p.add_mutually_exclusive_group();
+    auto p = argparse::ArgumentParser(argv[0]);
     
-    // modes
+    auto add_p = argparse::ArgumentParser("add");
+    add_p.add_description("add a new triplet with given TAG");
+    add_p.add_argument("tag").help("tag for new triplet");
+    p.add_subparser(add_p);
+    ARGPARSE_ADD_ALIAS(add_p, p, {"a"});
 
-    mode.add_argument("-A").help("Add a new triplet with given TAG")
-        .metavar("TAG");
+    auto get_p = argparse::ArgumentParser("get");
+    get_p.add_description("get password by TAG");
+    get_p.add_argument("tag").help("tag of the triplet");
+    get_p.add_argument("-l", "--login").help("return login instead of password.").flag();
+    p.add_subparser(get_p);
+    ARGPARSE_ADD_ALIAS(get_p, p, {"g"});
 
-    mode.add_argument("-G").help("get password by TAG")
-        .metavar("TAG");
+    auto remove_p = argparse::ArgumentParser("remove");
+    remove_p.add_description("remove triplet[s] by TAG[s]");
+    remove_p.add_argument("tag").help("tag[s] of triplet[s] to remove")
+        .nargs(argparse::nargs_pattern::at_least_one);
+    p.add_subparser(remove_p);
+    ARGPARSE_ADD_ALIAS(remove_p, p, {"r", "rm"});
 
-    mode.add_argument("-R").help("remove triplet / triplets by TAG[s]")
-        .nargs(argparse::nargs_pattern::at_least_one)
-        .metavar("TAG");
+    auto edit_p = argparse::ArgumentParser("edit");
+    edit_p.add_description("interactively edit triplet[s] by TAG[s]");
+    edit_p.add_argument("tag").help("tag[s] of triplet[s] to edit")
+        .nargs(argparse::nargs_pattern::at_least_one);
+    p.add_subparser(edit_p);
+    ARGPARSE_ADD_ALIAS(edit_p, p, {"e"});
 
-    mode.add_argument("-E").help("interactively edit triplet by TAG[s]")
-        .nargs(argparse::nargs_pattern::at_least_one)
-        .metavar("TAG");
+    auto find_p = argparse::ArgumentParser("find");
+    find_p.add_description("look for triplets by given tag PART[s]");
+    find_p.add_argument("part").help("part[s] of triplet tag to look for")
+        .nargs(argparse::nargs_pattern::at_least_one);
+    p.add_subparser(find_p);
+    ARGPARSE_ADD_ALIAS(find_p, p, {"f"});
 
-    mode.add_argument("-F").help("find triplets by given tag PART[s]")
-        .nargs(argparse::nargs_pattern::at_least_one)
-        .metavar("PART");
+    auto list_p = argparse::ArgumentParser("list");
+    list_p.add_description("list triplets");
+    list_p.add_argument("-n", "--num").help("show number of stored passwords").flag();
+    p.add_subparser(list_p);
+    ARGPARSE_ADD_ALIAS(list_p, p, {"l", "ls"});
 
-    mode.add_argument("-L").help("list triplets").flag();
-
-    mode.add_argument("-C").help("changes current locker file to LOCKER (relative to storage dir by default)")
-        .metavar("LOCKER");
+    auto change_p = argparse::ArgumentParser("change");
+    change_p.add_description("changes current locker file to LOCKER (relative to storage dir by default)");
+    get_p.add_argument("locker").help("new locker file path");
+    get_p.add_argument("-a", "--absolute").help("treat given locker path as non relative to storage dir").flag();
+    p.add_subparser(change_p);
+    ARGPARSE_ADD_ALIAS(change_p, p, {"c", "ch"});
 
     // Arguments / flags
 
-    p.add_argument("-p", "--print").flag()
-        .help("print to stdout instead of copying");
-
-    p.add_argument("-l")
-        .nargs(argparse::nargs_pattern::optional).scan<'i', int>().default_value(16)
-        .help("when using -G: return login instead of password. "
-              "when using --gen, treat as length for generated password");
-
+    p.add_argument("-p", "--print")      .help("print to stdout instead of copying").flag();
     p.add_argument("-s", "--show")       .help("do not hide passwords").flag();
-    p.add_argument("-n", "--num")        .help("show number of stored passwords").flag();
     p.add_argument("-c", "--current")    .help("print current locker path").flag();
     p.add_argument("-f", "--force")      .help("force action, don't prompt for confirmation").flag();
-    p.add_argument("-a", "--absolute")   .help("treat given locker paths as non relative to storage dir").flag();
 
     p.add_argument("-g",  "--gen")       .help("generate a password and copy it, if used with -A, store newly generated password").flag();
     p.add_argument("-nl", "--no-letters").help("generate a password without any letters.").flag();
     p.add_argument("-ns", "--no-symbols").help("generate a password without any special symbols.").flag();
+    p.add_argument("-l",  "--length")    .help("length for newly generated password")
+        .nargs(argparse::nargs_pattern::optional).scan<'i', int>().default_value(16);
 
     p.add_argument("--generate-token")   .help("generate a new token").flag();
 

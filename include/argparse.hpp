@@ -2002,7 +2002,7 @@ public:
 
     auto longest_arg_length = parser.get_length_of_longest_argument();
 
-    stream << parser.usage() << "\n\n";
+    stream << parser.usage() << "\n";
 
     if (!parser.m_description.empty()) {
       stream << parser.m_description << "\n\n";
@@ -2014,8 +2014,31 @@ public:
       [](const auto &argument) {
       return !argument.m_is_hidden; }) !=
       parser.m_positional_arguments.end();
+
     if (has_visible_positional_args) {
       stream << "Positional arguments:\n";
+    }
+
+    bool has_visible_subcommands = std::any_of(
+      parser.m_subparser_map.begin(), parser.m_subparser_map.end(),
+      [](auto &p) { return !p.second->get().m_suppress; });
+
+    if (has_visible_subcommands) {
+      stream << (parser.m_positional_arguments.empty()
+                     ? (parser.m_optional_arguments.empty() ? "" : "\n")
+                     : "\n")
+             << "Subcommands:\n";
+      for (const auto &[command, subparser] : parser.m_subparser_map) {
+        if (subparser->get().m_suppress) {
+          continue;
+        }
+
+        stream << std::setw(2) << " ";
+        stream << std::setw(static_cast<int>(longest_arg_length - 2))
+               << command;
+        stream << " " << subparser->get().m_description << "\n";
+      }
+      stream << '\n';
     }
 
     for (const auto &argument : parser.m_positional_arguments) {
@@ -2044,27 +2067,6 @@ public:
           stream.width(static_cast<std::streamsize>(longest_arg_length));
           stream << argument;
         }
-      }
-    }
-
-    bool has_visible_subcommands = std::any_of(
-        parser.m_subparser_map.begin(), parser.m_subparser_map.end(),
-        [](auto &p) { return !p.second->get().m_suppress; });
-
-    if (has_visible_subcommands) {
-      stream << (parser.m_positional_arguments.empty()
-                     ? (parser.m_optional_arguments.empty() ? "" : "\n")
-                     : "\n")
-             << "Subcommands:\n";
-      for (const auto &[command, subparser] : parser.m_subparser_map) {
-        if (subparser->get().m_suppress) {
-          continue;
-        }
-
-        stream << std::setw(2) << " ";
-        stream << std::setw(static_cast<int>(longest_arg_length - 2))
-               << command;
-        stream << " " << subparser->get().m_description << "\n";
       }
     }
 

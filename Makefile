@@ -20,10 +20,13 @@ build/prepare:
 $(ARGPARSE): $(ARGPARSE_SRC) | build/prepare
 	$(CXX) $(CXXFLAGS) -x c++-header $< -o $@
 
-build/%.o: src/%.cpp $(ARGPARSE) | build/prepare
-	$(CXX) $(CXXFLAGS) -include $(ARGPARSE_SRC) -c $< -o $@
+build/frontend.o: include/argparse.hpp
+build/frontend.o: CXXFLAGS += -include include/argparse.hpp
 
-build/cee: build/prepare $(OBJS)
+build/%.o: src/%.cpp | build/prepare
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+build/cee: $(OBJS)
 	$(CXX) $(OBJS) $(LFLAGS) -o $@
 
 run: build/cee
