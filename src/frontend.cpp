@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 using std::println;
+using nargs = argparse::nargs_pattern;
 
 static void clear_screen() 
 {
@@ -390,10 +391,10 @@ int CLI::handle_args(argparse::ArgumentParser& p)
     if (p.is_used("-c"))
         return print_locker(p.getb("-a"));
 
-    if (auto* subp = p.get_subparser({"change", "ch", "c"}))
-        return change_locker(subp->get("locker"), p.getb("-a"), subp->getb("-m"));
+    if (auto* s = p.get_subparser({"change", "ch", "c"}))
+        return change_locker(s->get("locker"), s->getb("-a"), s->getb("-m"));
     
-    if (p.is_used("-g") && !p.get_subparser({"add", "a"}))
+    if (p.is_used("-g"))
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     int rc = 0;
@@ -402,37 +403,37 @@ int CLI::handle_args(argparse::ArgumentParser& p)
         if (auth() != 0)
             return 1;
     
-    if (auto* subp = p.get_subparser({"add", "a"})) {
-        auto tag = subp->get("tag");
-        return p.is_used("-g")
-                 ? gen_and_add_triplet(tag, p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"))
-                 : add_triplet(tag, p.getb("-s"));
+    if (auto* s = p.get_subparser({"add", "a"})) {
+        auto tag = s->get("tag");
+        return s->is_used("-g")
+                 ? gen_and_add_triplet(tag, s->geti("-l"), s->getb("-nl"), s->getb("-ns"), s->getb("-p"))
+                 : add_triplet(tag, s->getb("-s"));
     }
 
-    if (auto* subp = p.get_subparser({"get", "g"})) {
-        return get_triplet(subp->get("tag"), subp->getb("-l"), p.getb("-p"));
+    if (auto* s = p.get_subparser({"get", "g"})) {
+        return get_triplet(s->get("tag"), s->getb("-l"), s->getb("-p"));
     }
 
-    if (auto* subp = p.get_subparser({"remove", "rm", "r"})) {
-        for (auto& tag : subp->getstrv("tag"))
-            rc += remove_triplet(tag, p.getb("-f"));
+    if (auto* s = p.get_subparser({"remove", "rm", "r"})) {
+        for (auto& tag : s->getstrv("tag"))
+            rc += remove_triplet(tag, s->getb("-f"));
         return rc;
     }
 
-    if (auto* subp = p.get_subparser({"edit", "e"})) {
-        for (auto& tag : subp->getstrv("tag"))
+    if (auto* s = p.get_subparser({"edit", "e"})) {
+        for (auto& tag : s->getstrv("tag"))
             rc += edit_triplet(tag);
         return rc;
     }
 
-    if (auto* subp = p.get_subparser({"find", "f"})) {
-        for (auto& part : subp->getstrv("part"))
+    if (auto* s = p.get_subparser({"find", "f"})) {
+        for (auto& part : s->getstrv("part"))
             rc += find_triplet(part);
         return rc;
     }
 
-    if (auto* subp = p.get_subparser({"list", "ls", "l"}))
-        return list_triplets(subp->getb("-n"), p.getb("-s"));
+    if (auto* s = p.get_subparser({"list", "ls", "l"}))
+        return list_triplets(s->getb("-n"), s->getb("-s"));
 
     return 0;
 }
@@ -484,65 +485,67 @@ int CLI::interactive_cli(argparse::ArgumentParser& p)
     return 0;
 }
 
-int CLI::main(int argc, char** argv) 
+int CLI::main(int argc, char** argv)
 {
     auto p = argparse::ArgumentParser(argv[0]);
-    
+
     auto add_p = argparse::ArgumentParser("add");
     add_p.add_description("add a new triplet with given TAG");
-    add_p.add_argument("tag").help("tag for new triplet");
+    add_p.add_argument("tag").metavar("TAG") .help("tag for new triplet");
+    add_p.add_argument("-s", "--show")       .help("do not hide passwords").flag();
+    add_p.add_argument("-g",  "--gen")       .help("generate a password, copy, and store it with tag").flag();
+    add_p.add_argument("-nl", "--no-letters").help("generate a password without any letters.").flag();
+    add_p.add_argument("-ns", "--no-symbols").help("generate a password without any special symbols.").flag();
+    add_p.add_argument("-p", "--print")      .help("print to stdout instead of copying").flag();
+    add_p.add_argument("-l",  "--length")    .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
     p.add_subparser({"a"}, add_p);
 
     auto get_p = argparse::ArgumentParser("get");
     get_p.add_description("get password by TAG");
-    get_p.add_argument("tag").help("tag of the triplet");
-    get_p.add_argument("-l", "--login").help("return login instead of password.").flag();
+    get_p.add_argument("tag").metavar("TAG").help("tag of the triplet");
+    get_p.add_argument("-l", "--login") .help("return login instead of password.").flag();
+    get_p.add_argument("-p", "--print") .help("print to stdout instead of copying").flag();
     p.add_subparser({"g"}, get_p);
 
     auto remove_p = argparse::ArgumentParser("remove");
     remove_p.add_description("remove triplet[s] by TAG[s]");
-    remove_p.add_argument("tag").help("tag[s] of triplet[s] to remove")
-        .nargs(argparse::nargs_pattern::at_least_one);
+    remove_p.add_argument("tag").metavar("TAG ...").help("tag[s] of triplet[s] to remove").nargs(nargs::at_least_one);
+    remove_p.add_argument("-f", "--force") .help("force action, don't prompt for confirmation").flag();
     p.add_subparser({"r", "rm"}, remove_p);
 
     auto edit_p = argparse::ArgumentParser("edit");
     edit_p.add_description("interactively edit triplet[s] by TAG[s]");
-    edit_p.add_argument("tag").help("tag[s] of triplet[s] to edit")
-        .nargs(argparse::nargs_pattern::at_least_one);
+    edit_p.add_argument("tag").metavar("TAG ...").help("tag[s] of triplet[s] to edit").nargs(nargs::at_least_one);
     p.add_subparser({"e"}, edit_p);
 
     auto find_p = argparse::ArgumentParser("find");
     find_p.add_description("look for triplets by given tag PART[s]");
-    find_p.add_argument("part").help("part[s] of triplet tag to look for")
-        .nargs(argparse::nargs_pattern::at_least_one);
+    find_p.add_argument("part").metavar("PART ...").help("part[s] of triplet tag to look for").nargs(nargs::at_least_one);
     p.add_subparser({"f"}, find_p);
 
     auto list_p = argparse::ArgumentParser("list");
     list_p.add_description("list triplets");
-    list_p.add_argument("-n", "--num").help("show number of stored passwords").flag();
+    list_p.add_argument("-n", "--num")  .help("show number of stored passwords").flag();
+    list_p.add_argument("-s", "--show") .help("do not hide passwords").flag();
     p.add_subparser({"l", "ls"}, list_p);
 
     auto change_p = argparse::ArgumentParser("change");
-    change_p.add_description("changes current locker file to LOCKER (relative to storage dir by default)");
-    change_p.add_argument("locker").help("new locker file path");
-    change_p.add_argument("-m", "--make").help("create locker file if does not exist").flag();
+    change_p.add_description("changes current locker file to LOCKER");
+    change_p.add_argument("locker").metavar("LOCKER").help("new locker file path");
+    change_p.add_argument("-m", "--make")     .help("create locker file if does not exist").flag();
+    change_p.add_argument("-a", "--absolute") .help("treat locker paths as non relative to storage dir").flag();
     p.add_subparser({"c", "ch"}, change_p);
 
-    // Arguments / flags
+    p.add_argument("-c", "--current")     .help("print current locker path").flag();
+    p.add_argument("-f", "--force")       .help("force action, don't prompt for confirmation").flag();
+    p.add_argument("-a", "--absolute")    .help("treat locker paths as non relative to storage dir").flag();
+    p.add_argument("-p", "--print")       .help("print to stdout instead of copying").flag();
 
-    p.add_argument("-p", "--print")      .help("print to stdout instead of copying").flag();
-    p.add_argument("-s", "--show")       .help("do not hide passwords").flag();
-    p.add_argument("-c", "--current")    .help("print current locker path").flag();
-    p.add_argument("-f", "--force")      .help("force action, don't prompt for confirmation").flag();
-    p.add_argument("-a", "--absolute")   .help("treat locker paths as non relative to storage dir").flag();
-
-    p.add_argument("-g",  "--gen")       .help("generate a password and copy it, if used with -A, store newly generated password").flag();
-    p.add_argument("-nl", "--no-letters").help("generate a password without any letters.").flag();
-    p.add_argument("-ns", "--no-symbols").help("generate a password without any special symbols.").flag();
-    p.add_argument("-l",  "--length")    .help("length for newly generated password")
-        .nargs(argparse::nargs_pattern::optional).scan<'i', int>().default_value(16);
-
-    p.add_argument("--generate-token")   .help("generate a new token").flag();
+    p.add_argument("-g",  "--gen")        .help("generate a password, copy, and store it with tag").flag();
+    p.add_argument("-nl", "--no-letters") .help("generate a password without any letters.").flag();
+    p.add_argument("-ns", "--no-symbols") .help("generate a password without any special symbols.").flag();
+    p.add_argument("-l",  "--length")     .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
+    p.add_argument("--generate-token")    .help("generate a new token").flag();
 
     int rc = 0;
 
