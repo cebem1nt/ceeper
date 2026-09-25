@@ -396,6 +396,26 @@ int CLI::print_locker(bool is_abs)
     return 0;
 }
 
+int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest)
+{
+    while (true) {
+        auto password = getpasswd("Create encryption passphrase: ");
+        
+        if (!password)
+            return 1; 
+
+        try {
+            ceeper_.file_encrypt(*password, file, dest);
+            break;
+        } catch (exc::Exception& e) {
+            println("{}", e.what());
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int CLI::interactive_cli(argparse::ArgumentParser& p) 
 {
     setup_signals();
@@ -457,6 +477,9 @@ int CLI::handle_args(argparse::ArgumentParser& p)
     
     if (p.is_used("-g"))
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
+
+    if (p.is_used("-e"))
+        return encrypt_file(p.get("-e"), p.present("-o"));
 
     int rc = 0;
 
@@ -560,6 +583,10 @@ int CLI::main(int argc, char** argv)
     p.add_argument("-ns", "--no-symbols") .help("generate a password without any special symbols.").flag();
     p.add_argument("-l",  "--length")     .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
     p.add_argument("--generate-token")    .help("generate a new token").flag();
+
+    p.add_argument("-e", "--encrypt").metavar("FILE") .help("prompts for password, encrypts given file");
+    p.add_argument("-d", "--decrypt").metavar("FILE") .help("prompts for password, decrypts given file");
+    p.add_argument("-o", "--out").metavar("OUT")      .help("when using -e/-d use this as dest file");
 
     p.add_epilog(
         "Each password file is referred to as a \033[33m\"locker\"\033[0m and has a .lk extension.\n"

@@ -313,3 +313,26 @@ bool FileSystem::is_new_locker()
     return !salt::exists(salt_size_, locker_file_);
 }
 
+std::pair<std::ifstream, std::ofstream> 
+    FileSystem::prepare_encrypt_file(fs::path src, std::optional<fs::path> dest)
+{
+    if (!fs::exists(src)) {
+        auto msg = std::format("Given input file {} does not exist", src.string());
+        throw exc::FileNotFound(msg);
+    }
+
+    auto in = std::ifstream(src, std::ios::binary);
+
+    if (!dest) {
+        dest = src;
+        *dest += ".enc";
+
+        if (fs::exists(*dest)) {
+            auto msg = std::format("Candidate file {} already exists", dest->string());
+            throw exc::AlreadyExists(msg);
+        }
+    }
+
+    auto out = std::ofstream(*dest, std::ios::binary);
+    return std::make_pair(std::move(in), std::move(out));
+}

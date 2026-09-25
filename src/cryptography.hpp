@@ -2,12 +2,13 @@
 
 #include "common.hpp"
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <array>
 
+#define FILE_CHUNK_SIZE 64 * 1024
 #define DERIVE_KEY_LENGTH 32
-#define AES_IV_LENGTH     16 // AES initial vector
 
 // Python fernet format:
 // version : timestamp : iv : ciphertext : hmac
@@ -19,6 +20,8 @@
 #define FERNET_HMAC_SIZE        32
 #define FERNET_METAINFO_SIZE    \
     (1 + FERNET_TIMESTAMP_SIZE + FERNET_IV_LENGTH + FERNET_HMAC_SIZE)
+
+#define AES_IV_LENGTH     16 // AES initial vector
 
 class ACryptographyBackend 
 {
@@ -34,8 +37,16 @@ public:
         const std::string& token
     ) = 0;
 
-    virtual std::string encrypt(const std::string& data) = 0;
-    virtual std::string decrypt(const std::string& data) = 0;
+    virtual std::string encrypt(std::string_view data) = 0;
+    virtual std::string decrypt(std::string_view data) = 0;
+
+    std::string encrypt(const std::string& data) {
+        return encrypt(std::string_view(data));
+    }
+
+    std::string decrypt(const std::string& data) {
+        return decrypt(std::string_view(data));
+    }
 
     virtual bool cipher_initialized() {
         return key_set_;
@@ -60,8 +71,8 @@ public:
         const std::string& token
     ) override;
 
-    std::string encrypt(const std::string& data) override;
-    std::string decrypt(const std::string& data) override;
+    std::string encrypt(std::string_view data) override;
+    std::string decrypt(std::string_view data) override;
 };
 
 // https://github.com/Anthony-J-Garot/fernet_for_cpp/blob/main/fernet.cpp
@@ -78,8 +89,8 @@ public:
         const std::string& token
     ) override;
 
-    std::string encrypt(const std::string& data) override;
-    std::string decrypt(const std::string& data) override;
+    std::string encrypt(std::string_view data) override;
+    std::string decrypt(std::string_view data) override;
 
 private:
     std::string encoded_key_;
@@ -105,8 +116,16 @@ public:
     std::string encrypt_triplet(ceeper::Triplet t);
     ceeper::Triplet decrypt_triplet(std::string data);
     
+    void encrypt_file(const std::string& passphrase, const std::string& token, 
+                      std::istream& src, std::ostream& dest);
+
+    void decrypt_file(const std::string& passphrase, const std::string& token, 
+                      std::istream& src, std::ostream& dest);
+
     bool cipher_initialized();
 
 private:
-    std::unique_ptr<ACryptographyBackend> backend_; 
+    int iterations_;
+    std::unique_ptr<ACryptographyBackend> backend_;
+    std::string backend_name_;
 };

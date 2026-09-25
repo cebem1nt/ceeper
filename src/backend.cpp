@@ -3,6 +3,7 @@
 #include <random>
 
 using namespace ceeper;
+namespace fs = std::filesystem;
 
 void EventManager::subscribe(const std::string& event, 
                              std::function<void()> fn, bool is_async)
@@ -169,3 +170,12 @@ bool Ceeper::is_unlocked()
 {
     return cipher_initialized() && is_unlocked_;
 }
+
+void Ceeper::file_encrypt(const std::string& passphrase, fs::path file, 
+                         std::optional<fs::path> dest)
+{
+    auto [in, out] = prepare_encrypt_file(file, dest);
+    encrypt_file(passphrase, get_token(), in, out);
+}
+
+void file_decrypt(std::filesystem::path file, const std::string& passphrase);

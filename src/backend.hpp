@@ -59,6 +59,12 @@ public:
     void store_triplet(ceeper::Triplet t);
     void remove_triplet(const std::string& tag);
     void edit_triplet(const std::string& tag, int property, std::string value);
+    
+    void file_encrypt(const std::string& passphrase, std::filesystem::path file, 
+                      std::optional<std::filesystem::path> dest = std::nullopt);
+
+    void file_decrypt(const std::string& passphrase, std::filesystem::path file, 
+                      std::optional<std::filesystem::path> dest = std::nullopt);
 
     bool is_unlocked();
 

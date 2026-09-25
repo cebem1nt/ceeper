@@ -13,6 +13,8 @@
 #include <regex>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 static std::array<uchar, DERIVE_KEY_LENGTH> derive_key(
     const std::string& passphrase,
     const std::string& salt,
@@ -152,7 +154,7 @@ void AESBackend::init_cipher(const std::string& passphrase,
     key_set_ = true;
 }
 
-std::string AESBackend::encrypt(const std::string& data) 
+std::string AESBackend::encrypt(std::string_view data) 
 {
     if (!key_set_)
         throw exc::NotInitialized("Key was not initialized!");
@@ -188,7 +190,7 @@ std::string AESBackend::encrypt(const std::string& data)
     return base64url_encode(out);
 }
 
-std::string AESBackend::decrypt(const std::string& data) 
+std::string AESBackend::decrypt(std::string_view data) 
 {
     if (!key_set_)
         throw exc::NotInitialized("Key was not initialized!");
@@ -199,7 +201,7 @@ std::string AESBackend::decrypt(const std::string& data)
     if (!ctx)
         FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
 
-    const auto   encrypted  = base64url_decode(data);
+    const auto   encrypted  = base64url_decode(std::string(data));
     const uchar* iv         = encrypted.data();
     const uchar* ciphertext = encrypted.data() + AES_IV_LENGTH;
     
@@ -236,7 +238,7 @@ void FernetBackend::init_cipher(const std::string& passphrase,
     key_set_ = true;
 }
 
-std::string FernetBackend::encrypt(const std::string& data) 
+std::string FernetBackend::encrypt(std::string_view data)
 {
     if (!key_set_)
         throw exc::NotInitialized("Cipher wasn't initialized");
@@ -284,12 +286,12 @@ std::string FernetBackend::encrypt(const std::string& data)
     return base64url_encode(token);
 }
 
-std::string FernetBackend::decrypt(const std::string& data) 
+std::string FernetBackend::decrypt(std::string_view data) 
 {
     if (!key_set_)
         throw exc::NotInitialized("Cipher wasn't initialized");
 
-    auto token = base64url_decode(data);
+    auto token = base64url_decode(std::string(data));
 
     if (token.size() < FERNET_METAINFO_SIZE)
         throw exc::DecryptionError("Token doesn't match");
@@ -339,6 +341,9 @@ std::string FernetBackend::decrypt(const std::string& data)
 CryptographySystem::CryptographySystem(int iterations, std::string backend) 
 {
     std::transform(backend.begin(), backend.end(), backend.data(), ::tolower);
+    
+    backend_name_ = backend;
+    iterations_ = iterations;
 
     if (backend == "aes")
         backend_ = std::make_unique<AESBackend>(iterations);   
@@ -444,4 +449,59 @@ ceeper::Triplet CryptographySystem::decrypt_triplet(std::string data)
         throw exc::FileMalformed("Malformed .lk file!");
 
     return out;
+}
+
+void CryptographySystem::encrypt_file(const std::string& passphrase, const std::string& token,
+                                      std::istream& src, std::ostream& dest)
+{
+    auto salt = surandom(16);
+
+    // We need a tmp backend here to not mess up original one
+    std::unique_ptr<ACryptographyBackend> tmpb;
+
+    if (backend_name_ == "aes")
+        tmpb = std::make_unique<AESBackend>(iterations_);   
+    else
+        tmpb = std::make_unique<FernetBackend>(iterations_);
+
+    tmpb->init_cipher(passphrase, salt, token);
+    auto buf = std::array<char, FILE_CHUNK_SIZE>();
+    dest << salt;
+    
+    while (src) {
+        src.read(buf.data(), buf.size());
+        auto n = src.gcount();
+        if (n <= 0) 
+            break;
+
+        std::string_view chunk(buf.data(), n);
+        auto encrypted_chunk = tmpb->encrypt(chunk);
+
+        dest << encrypted_chunk << '\n';
+        dest.flush();
+    }
+
+    // TODO we can xor it on top by token
+}
+
+void CryptographySystem::decrypt_file(const std::string& passphrase, const std::string& token,
+                                      std::istream& src, std::ostream& dest)
+{
+    std::unique_ptr<ACryptographyBackend> tmpb;
+
+    if (backend_name_ == "aes")
+        tmpb = std::make_unique<AESBackend>(iterations_);   
+    else
+        tmpb = std::make_unique<FernetBackend>(iterations_);
+
+    auto salt = std::string(16, '\0');   
+    src.read(salt.data(), 16);
+
+    tmpb->init_cipher(passphrase, salt, token);
+    std::string line;
+
+    while (std::getline(src, line)) {
+        auto original = tmpb->decrypt(line);
+        dest << original;
+    }        
 }

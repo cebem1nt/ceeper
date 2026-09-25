@@ -73,6 +73,8 @@ public:
         bool is_abs = false
     );
 
+    int encrypt_file(const std::string& file, std::optional<std::string> dest);
+        
     int handle_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);
     int main(int argc, char** argv);
