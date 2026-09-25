@@ -2,7 +2,6 @@
 
 #include "common.hpp"
 
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <array>
@@ -50,6 +49,18 @@ public:
 
     virtual bool cipher_initialized() {
         return key_set_;
+    }
+
+    virtual void xor_by_key(std::string& data) {
+        for (uint i = 0; i < data.size(); i++) {
+            data[i] ^= key_[i % key_.size()];
+        }
+    }
+
+    virtual inline void xor_by_key(char* buf, uint n) {
+        for (uint i = 0; i < n; i++) {
+            buf[i] ^= key_[i % key_.size()];
+        }
     }
 
 protected:

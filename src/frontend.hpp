@@ -36,8 +36,8 @@ public:
     int generate_token(bool force = false);
     int print_locker(bool is_abs = false);
 
-    int encrypt_file(const std::string& file, std::optional<std::string> dest);
-    int decrypt_file(const std::string& file, std::optional<std::string> dest);
+    int encrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);
+    int decrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);
         
     int handle_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);

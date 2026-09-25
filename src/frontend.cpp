@@ -396,8 +396,13 @@ int CLI::print_locker(bool is_abs)
     return 0;
 }
 
-int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest)
+int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove)
 {
+    if (!std::filesystem::exists(file)) {
+        println("Given input file {} does not exist", file);
+        return 1;
+    }
+
     while (true) {
         auto passwd = getpasswd("Create encryption passphrase: ");
 
@@ -411,6 +416,7 @@ int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest)
 
         try {
             ceeper_.file_encrypt(*passwd, file, dest);
+            break;
         } catch (exc::AlreadyExists& e) {
             println("{}", e.what());
             println("Hint: use -o to provide output file");
@@ -418,11 +424,19 @@ int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest)
         }
     }
 
+    if (do_remove)
+        std::filesystem::remove(file);
+
     return 0;
 }
 
-int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest)
+int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove)
 {
+    if (!std::filesystem::exists(file)) {
+        println("Given input file {} does not exist", file);
+        return 1;
+    }
+
     while (true) {
         auto passwd = getpasswd("Enter decryption passphrase: ");
     
@@ -436,15 +450,19 @@ int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest)
 
         try {
             ceeper_.file_decrypt(*passwd, file, dest);
+            break;
         } catch (exc::AlreadyExists& e) {
             println("{}", e.what());
             println("Hint: use -o to provide output file");
             return 1;
         } catch (exc::DecryptionError) {
             println("Incorrect passphrase!");
-            return 1;
+            continue;
         }
     }
+
+    if (do_remove)
+        std::filesystem::remove(file);
 
     return 0;
 }
@@ -512,10 +530,10 @@ int CLI::handle_args(argparse::ArgumentParser& p)
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     if (p.is_used("-e"))
-        return encrypt_file(p.get("-e"), p.present("-o"));
+        return encrypt_file(p.get("-e"), p.present("-o"), p.getb("-i"));
 
     if (p.is_used("-d"))
-        return decrypt_file(p.get("-d"), p.present("-o"));
+        return decrypt_file(p.get("-d"), p.present("-o"), p.getb("-i"));
 
     int rc = 0;
 
@@ -618,11 +636,13 @@ int CLI::main(int argc, char** argv)
     p.add_argument("-nl", "--no-letters") .help("generate a password without any letters.").flag();
     p.add_argument("-ns", "--no-symbols") .help("generate a password without any special symbols.").flag();
     p.add_argument("-l",  "--length")     .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
-    p.add_argument("--generate-token")    .help("generate a new token").flag();
 
     p.add_argument("-e", "--encrypt").metavar("FILE") .help("prompts for password, encrypts given file");
     p.add_argument("-d", "--decrypt").metavar("FILE") .help("prompts for password, decrypts given file");
-    p.add_argument("-o", "--out").metavar("OUT")      .help("when using -e/-d use this as dest file");
+    p.add_argument("-o", "--out").metavar("OUT")      .help("exact out file when using -e/-d");
+    p.add_argument("-i", "--in-place")                .help("after encrypting / decrypting, remove original file").flag();
+
+    p.add_argument("--generate-token")    .help("generate a new token").flag();
 
     p.add_epilog(
         "Each password file is referred to as a \033[33m\"locker\"\033[0m and has a .lk extension.\n"

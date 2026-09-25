@@ -472,11 +472,10 @@ void CryptographySystem::encrypt_file(const std::string& passphrase, const std::
         if (n <= 0) 
             break;
 
-        std::string_view chunk(buf.data(), n);
+        auto chunk = std::string_view(buf.data(), n);
         auto encrypted_chunk = tmpb->encrypt(chunk);
-        // TODO xor
-
-        dest << encrypted_chunk << '\n';
+        tmpb->xor_by_key(encrypted_chunk);
+        dest << encrypted_chunk;
         dest.flush();
     }
 }
@@ -493,12 +492,21 @@ void CryptographySystem::decrypt_file(const std::string& passphrase, const std::
 
     auto salt = std::string(16, '\0');   
     src.read(salt.data(), 16);
+    auto buf = std::array<char, FILE_CHUNK_SIZE>();
 
     tmpb->init_cipher(passphrase, salt, token);
-    std::string line;
 
-    while (std::getline(src, line)) {
-        auto original = tmpb->decrypt(line);
-        dest << original;
-    }        
+    while (src) {
+        src.read(buf.data(), buf.size());
+        auto n = src.gcount();
+        if (n <= 0) 
+            break;
+
+        tmpb->xor_by_key(buf.data(), n);
+        auto chunk = std::string_view(buf.data(), n);
+        auto decrypted_chunk = tmpb->decrypt(chunk);
+
+        dest << decrypted_chunk;
+        dest.flush();
+    }
 }
