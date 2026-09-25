@@ -399,16 +399,49 @@ int CLI::print_locker(bool is_abs)
 int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest)
 {
     while (true) {
-        auto password = getpasswd("Create encryption passphrase: ");
-        
-        if (!password)
+        auto passwd = getpasswd("Create encryption passphrase: ");
+
+        if (!passwd)
             return 1; 
 
+        if (passwd->empty()) {
+            println("Passphrase can not be empty!");
+            continue;
+        }
+
         try {
-            ceeper_.file_encrypt(*password, file, dest);
-            break;
-        } catch (exc::Exception& e) {
+            ceeper_.file_encrypt(*passwd, file, dest);
+        } catch (exc::AlreadyExists& e) {
             println("{}", e.what());
+            println("Hint: use -o to provide output file");
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest)
+{
+    while (true) {
+        auto passwd = getpasswd("Enter decryption passphrase: ");
+    
+        if (!passwd)
+            return 1; 
+
+        if (passwd->empty()) {
+            println("Passphrase can not be empty!");
+            continue;
+        }        
+
+        try {
+            ceeper_.file_decrypt(*passwd, file, dest);
+        } catch (exc::AlreadyExists& e) {
+            println("{}", e.what());
+            println("Hint: use -o to provide output file");
+            return 1;
+        } catch (exc::DecryptionError) {
+            println("Incorrect passphrase!");
             return 1;
         }
     }
@@ -480,6 +513,9 @@ int CLI::handle_args(argparse::ArgumentParser& p)
 
     if (p.is_used("-e"))
         return encrypt_file(p.get("-e"), p.present("-o"));
+
+    if (p.is_used("-d"))
+        return decrypt_file(p.get("-d"), p.present("-o"));
 
     int rc = 0;
 

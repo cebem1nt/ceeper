@@ -1,6 +1,7 @@
 #include "backend.hpp"
 
 #include <random>
+#include <fstream>
 
 using namespace ceeper;
 namespace fs = std::filesystem;
@@ -172,10 +173,43 @@ bool Ceeper::is_unlocked()
 }
 
 void Ceeper::file_encrypt(const std::string& passphrase, fs::path file, 
-                         std::optional<fs::path> dest)
+                          std::optional<fs::path> dest)
 {
-    auto [in, out] = prepare_encrypt_file(file, dest);
+    if (!fs::exists(file))
+        throw exc::FileNotFound("Given input file {} does not exist", file.string());
+    
+    auto in = std::ifstream(file, std::ios::binary);
+
+    if (!dest) {
+        dest = file;
+        *dest += ".enc";
+
+        if (fs::exists(*dest))
+            throw exc::AlreadyExists("Candidate file {} already exists", dest->string());
+    }
+
+    auto out = std::ofstream(*dest, std::ios::binary);
     encrypt_file(passphrase, get_token(), in, out);
 }
 
-void file_decrypt(std::filesystem::path file, const std::string& passphrase);
+void Ceeper::file_decrypt(const std::string& passphrase, fs::path file, 
+                          std::optional<fs::path> dest)
+{
+    if (!fs::exists(file))
+        throw exc::FileNotFound("Given input file {} does not exist", file.string());
+    
+    auto in = std::ifstream(file, std::ios::binary);
+
+    if (!dest) {
+        if (file.extension() == ".enc")
+            dest = file.replace_extension();
+        else
+            dest = file;
+
+        if (fs::exists(*dest))
+            throw exc::AlreadyExists("Candidate file {} already exists", dest->string());
+    }
+
+    auto out = std::ofstream(*dest, std::ios::binary);
+    decrypt_file(passphrase, get_token(), in, out);
+}

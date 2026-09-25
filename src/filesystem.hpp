@@ -3,7 +3,6 @@
 #include <string>
 #include <filesystem>
 #include <vector>
-#include <fstream>
 
 #define LK_HEADER_SIZE 64 // SHA256 hash char length
 
@@ -57,9 +56,6 @@ public:
     std::string get_locker_salt();
     std::string get_token();
     std::string generate_token(bool force = false);
-
-    std::pair<std::ifstream, std::ofstream> prepare_encrypt_file(
-        std::filesystem::path src, std::optional<std::filesystem::path> dest);
 
     bool token_exists();
     bool is_new_locker();

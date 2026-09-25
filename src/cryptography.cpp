@@ -13,8 +13,6 @@
 #include <regex>
 #include <vector>
 
-namespace fs = std::filesystem;
-
 static std::array<uchar, DERIVE_KEY_LENGTH> derive_key(
     const std::string& passphrase,
     const std::string& salt,
@@ -476,12 +474,11 @@ void CryptographySystem::encrypt_file(const std::string& passphrase, const std::
 
         std::string_view chunk(buf.data(), n);
         auto encrypted_chunk = tmpb->encrypt(chunk);
+        // TODO xor
 
         dest << encrypted_chunk << '\n';
         dest.flush();
     }
-
-    // TODO we can xor it on top by token
 }
 
 void CryptographySystem::decrypt_file(const std::string& passphrase, const std::string& token,
