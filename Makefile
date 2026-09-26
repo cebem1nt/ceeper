@@ -32,5 +32,11 @@ build/cee: $(OBJS)
 run: build/cee
 	./build/cee
 
+install: build/cee
+	cp build/cee /usr/bin/
+
+uninstall: build/cee
+	rm /usr/bin/cee
+
 clean:
 	rm -rf build/
