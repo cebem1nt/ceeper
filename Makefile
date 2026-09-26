@@ -1,14 +1,19 @@
-# TODO build aint crossplatform :(
+CXX      = clang++
+CXXFLAGS = -Wall -Wextra -std=c++23
+LFLAGS	 = -lcrypto
 
-CXX           = clang++
-CXXFLAGS      = -Wall -Wextra -std=c++23
-LFLAGS	      = -lcrypto -lreadline
+SRCS     = $(wildcard src/*.cpp)
+OBJS     = $(SRCS:src/%.cpp=build/%.o)
 
-SRCS          = $(wildcard src/*.cpp)
-OBJS          = $(SRCS:src/%.cpp=build/%.o)
+ifneq ($(OS),Windows_NT)
+	UNAME_S := $(shell uname -s)
+	LFLAGS += -lreadline
 
-ARGPARSE 	  = build/argparse.hpp.pch
-ARGPARSE_SRC  = include/argparse.hpp
+	ifeq ($(UNAME_S),Darwin)
+		OBJS += build/clipboard.o
+		LFLAGS += -framework AppKit
+	endif
+endif
 
 .PHONY: all run clean build/prepare
 
@@ -17,11 +22,8 @@ all: build/cee
 build/prepare:
 	mkdir -p build
 
-$(ARGPARSE): $(ARGPARSE_SRC) | build/prepare
-	$(CXX) $(CXXFLAGS) -x c++-header $< -o $@
-
-build/frontend.o: include/argparse.hpp
-build/frontend.o: CXXFLAGS += -include include/argparse.hpp
+build/clipboard.o: include/clipboard.mm | build/prepare
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 build/%.o: src/%.cpp | build/prepare
 	$(CXX) $(CXXFLAGS) -c $< -o $@

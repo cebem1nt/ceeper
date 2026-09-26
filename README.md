@@ -60,8 +60,16 @@ constexpr const char* EXTENSIONS[] = {
 
 ### Build
 
+#### Posix:
+
 ```sh
 make && sudo make install
+```
+
+#### Windows (MinGW/MSYS2 shell):
+
+```sh
+make
 ```
 
 ## Usage
@@ -209,5 +217,5 @@ You will be prompted to setup a git repo if not found, altenatively setup a git 
 
 ## TODO
 
-- [ ] Crossplatform build
+- [x] Crossplatform build
 - [ ] Windows support

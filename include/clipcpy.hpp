@@ -1,11 +1,41 @@
 #pragma once
 
 #include <string>
-#include <cstdlib>
+#include <cstdio>
 
 #if defined(_WIN32)
 
+#include <Windows.h>
+#include <winuser.h>
+
+// TODO not tested yet
+// https://cplusplus.com/forum/general/48837/
+inline bool clipcpy(const std::string& text) 
+{
+    if (!OpenClipboard(nullptr))
+        return false;
+    
+    EmptyClipboard();
+    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, text.size()+1);
+
+    if (!hg) {
+        CloseClipboard();
+        return false;
+    }
+
+    memcpy(GlobalLock(hg), text.c_str(), text.size() + 1);
+    GlobalUnlock(hg);
+    SetClipboardData(CF_TEXT, hg);
+    CloseClipboard();
+    GlobalFree(hg);
+
+    return true;
+}
+
 #elif defined(__APPLE__)
+
+// defined in clipcpy.mm
+inline bool clipcpy(const std::string& text);
 
 #elif defined(__linux__) || defined(__ANDROID__)
 
