@@ -10,6 +10,56 @@ std::string to_lower(std::string in)
     return in;
 }
 
+// https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
+void toggle_stdin_echo(bool enable) 
+{
+#ifdef _WIN32
+    // Windows Implementation using GetStdHandle and SetConsoleMode
+    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE); 
+    DWORD console_mode;
+    GetConsoleMode(handle, &console_mode);
+
+    if (!enable)
+        console_mode &= ~ENABLE_ECHO_INPUT; // Disable echo
+    else
+        console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
+
+    SetConsoleMode(handle, console_mode);
+#else
+    // POSIX/Unix Implementation using termios
+    struct termios ts;
+    // Get current settings
+    tcgetattr(STDIN_FILENO, &ts);
+    
+    if (!enable)
+        ts.c_lflag &= ~ECHO; // Disable echo flag
+    else
+        ts.c_lflag |= ECHO;  // Enable echo flag
+
+    // Apply new settings immediately
+    (void) tcsetattr(STDIN_FILENO, TCSANOW, &ts);
+#endif
+}
+
+void clear_screen() 
+{
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+std::optional<std::string> input() 
+{
+    return input("");
+}
+
+std::optional<std::string> getpasswd() 
+{
+    return getpasswd("");
+}
+
 std::string trim_whitespace(std::string in)
 {
     auto not_space = [](unsigned char ch) { 

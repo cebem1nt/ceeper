@@ -48,11 +48,11 @@ public:
     std::string generate_password(uint length, bool no_letters = false, 
                                   bool no_special_syms = false);
     
-    std::vector<ceeper::Triplet> list_triplets();
-    std::vector<ceeper::Triplet> search_for_triplets(const std::string& tag_part);
-    std::optional<ceeper::Triplet> get_triplet(const std::string& tag);
+    std::vector<Triplet> list_triplets();
+    std::vector<Triplet> search_for_triplets(const std::string& tag_part);
+    std::optional<Triplet> get_triplet(const std::string& tag);
     
-    void store_triplet(ceeper::Triplet t);
+    void store_triplet(Triplet t);
     void remove_triplet(const std::string& tag);
     void edit_triplet(const std::string& tag, int property, std::string value);
     

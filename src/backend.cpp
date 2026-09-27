@@ -3,7 +3,6 @@
 #include <random>
 #include <fstream>
 
-using namespace ceeper;
 namespace fs = std::filesystem;
 
 void EventManager::subscribe(const std::string& event, 
@@ -51,9 +50,11 @@ bool Ceeper::unlock(const std::string& passphrase)
         init_cipher(passphrase, salt, token);
         list_triplets();
         is_unlocked_ = true;
-    } catch (const exc::DecryptionError& e) { // Could not decrypt -> mismatching key
+    } catch (exc::DecryptionError) { // Could not decrypt -> mismatching key
         return false;
-    }
+    } catch (exc::InvalidKey) { // Fernet mismatching token, same thing
+        return false;
+    } 
 
     return true;
 }
@@ -98,7 +99,7 @@ std::optional<Triplet> Ceeper::get_triplet(const std::string& tag)
     return decrypt_triplet(found);
 }
 
-void Ceeper::store_triplet(ceeper::Triplet t) 
+void Ceeper::store_triplet(Triplet t) 
 {
     auto encrypted = encrypt_triplet(t);
     append_line_to_locker(hash(t[0]), encrypted);

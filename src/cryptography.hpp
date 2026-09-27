@@ -126,8 +126,8 @@ public:
     std::string decrypt(const std::string& data);
     std::string hash(const std::string& data); // SHA256
     
-    std::string encrypt_triplet(ceeper::Triplet t);
-    ceeper::Triplet decrypt_triplet(std::string data);
+    std::string encrypt_triplet(Triplet t);
+    Triplet decrypt_triplet(std::string data);
     
     void encrypt_file(const std::string& passphrase, const std::string& token, 
                       std::istream& src, std::ostream& dest);

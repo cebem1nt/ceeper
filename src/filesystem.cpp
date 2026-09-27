@@ -135,7 +135,7 @@ CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable)
     if (it != data_dirs.end())
         data_dir_ = it->second;
     else 
-        FATAL("Unsupported operating system \"%s\"!\n", platform_.c_str());
+        FATAL("Unsupported operating system {}", platform_);
 
     fs::create_directories(data_dir_);
     fs::create_directories(storage_dir_);

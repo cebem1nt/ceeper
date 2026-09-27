@@ -31,7 +31,7 @@ static void setup_signals()
 #endif
 }
 
-void print_triplet(const ceeper::Triplet& t, bool show_password = false) 
+void print_triplet(const Triplet& t, bool show_password = false) 
 {
     println("\nTag: {}", t[0]);
     println("Login: {}", t[1]);

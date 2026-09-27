@@ -37,8 +37,6 @@ static std::array<uchar, DERIVE_KEY_SIZE> derive_key(
     return derived_key;
 }
 
-// TODO evp_encrypt, evp_decrypt leaks after throw 
-
 template <const EVP_CIPHER* (*cipher_fn)()>
 static inline std::vector<uchar> evp_encrypt(const uchar* plaintext, uint plaintext_size,
                                              const uchar* key, const uchar* iv, int* out_len)
@@ -54,14 +52,20 @@ static inline std::vector<uchar> evp_encrypt(const uchar* plaintext, uint plaint
         
     int update_len = 0, final_len = 0, total_len = 0;
     
-    if (EVP_EncryptInit(ctx, cipher, key, iv) != 1)
+    if (EVP_EncryptInit(ctx, cipher, key, iv) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::EncryptionError("evp_encrypt: EVP_EncryptInit failed");
+    }
 
-    if (EVP_EncryptUpdate(ctx, out.data(), &update_len, plaintext, plaintext_size) != 1)
+    if (EVP_EncryptUpdate(ctx, out.data(), &update_len, plaintext, plaintext_size) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::EncryptionError("evp_encrypt: EVP_EncryptUpdate failed");
+    }
     
-    if (EVP_EncryptFinal(ctx, out.data() + update_len, &final_len) != 1)
+    if (EVP_EncryptFinal(ctx, out.data() + update_len, &final_len) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::EncryptionError("evp_encrypt: EVP_EncryptFinal failed");
+    }
 
     EVP_CIPHER_CTX_free(ctx);
 
@@ -89,14 +93,20 @@ static inline std::vector<uchar> evp_decrypt(const uchar* ciphertext, uint ciphe
 
     int update_len = 0, final_len = 0, total_len = 0;
 
-    if (EVP_DecryptInit(ctx, cipher, key, iv) != 1)
+    if (EVP_DecryptInit(ctx, cipher, key, iv) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::DecryptionError("evp_decrypt: EVP_DecryptInit failed!");
+    }
 
-    if (EVP_DecryptUpdate(ctx, out.data(), &update_len, ciphertext, ciphertext_size) != 1)
+    if (EVP_DecryptUpdate(ctx, out.data(), &update_len, ciphertext, ciphertext_size) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::DecryptionError("evp_decrypt: EVP_DecryptUpdate failed");
+    }
 
-    if (EVP_DecryptFinal(ctx, out.data() + update_len, &final_len) != 1)
+    if (EVP_DecryptFinal(ctx, out.data() + update_len, &final_len) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
         throw exc::DecryptionError("evp_decrypt: invalid ciphertext or padding");
+    }
 
     total_len = update_len + final_len;
     out.resize(total_len);
@@ -319,17 +329,18 @@ std::string FernetBackend::decrypt(std::string_view data)
     auto token = base64url_decode(std::string(data));
 
     if (token.size() < FERNET_METAINFO_SIZE)
-        throw exc::DecryptionError("Token doesn't match");
+        throw exc::InvalidKey("Token doesn't match");
 
     if (token[0] != FERNET_VERSION)
-        throw exc::DecryptionError("FernetBackend: invalid version");
+        throw exc::AsertionFailed(
+            "FernetBackend: got invalid fernet version, expected {:#x}", FERNET_VERSION);
 
     auto signed_part  = std::vector<uchar>(token.begin(), token.end() - FERNET_HMAC_SIZE);
     auto expected_mac = std::vector<uchar>(token.end() - FERNET_HMAC_SIZE, token.end());
     auto actual_mac   = hmac(signed_part);
 
     if (!is_equal(expected_mac, actual_mac))
-        throw exc::DecryptionError("Token doesn't match");
+        throw exc::InvalidKey("Token doesn't match");
 
     const uchar* iv         = token.data() + 1 + FERNET_TIMESTAMP_SIZE;
     const uchar* ciphertext = token.data() + 1 + FERNET_TIMESTAMP_SIZE + FERNET_IV_LENGTH;
@@ -415,7 +426,7 @@ std::string CryptographySystem::hash(const std::string& data)
     return out.str();
 }
 
-std::string CryptographySystem::encrypt_triplet(ceeper::Triplet t) 
+std::string CryptographySystem::encrypt_triplet(Triplet t) 
 {
     auto escape_brackets = [](std::string in) {
         in = std::regex_replace(in, std::regex(R"(\[)"), R"(\[)");
@@ -435,7 +446,7 @@ std::string CryptographySystem::encrypt_triplet(ceeper::Triplet t)
     return encrypt(formatted);
 }
 
-ceeper::Triplet CryptographySystem::decrypt_triplet(std::string data) 
+Triplet CryptographySystem::decrypt_triplet(std::string data) 
 {
     auto restore_brackets = [](std::string in) {
         in = std::regex_replace(in, std::regex(R"(\\\[)"), "[");
@@ -449,7 +460,7 @@ ceeper::Triplet CryptographySystem::decrypt_triplet(std::string data)
     std::sregex_iterator it(decrypted.begin(), decrypted.end(), pattern);
     std::sregex_iterator end;
 
-    ceeper::Triplet out;
+    Triplet out;
     std::size_t count = 0;
 
     for (; it != end; it++) {

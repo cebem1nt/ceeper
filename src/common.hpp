@@ -25,16 +25,13 @@
 # include <readline/history.h>
 #endif
 
-#define FATAL(...) do {                 \
-    std::fprintf(stderr, __VA_ARGS__);  \
-    exit(EXIT_FAILURE);                 \
-} while (0);
-
 #define RC reinterpret_cast
 #define SC static_cast
 
 typedef unsigned char uchar;
 typedef unsigned int  uint;
+
+typedef std::array<std::string, 3> Triplet;
 
 std::vector<uchar> urandom(uint nbytes);
 std::string surandom(uint nbytes);
@@ -43,35 +40,52 @@ std::string to_lower(std::string in);
 std::string trim_whitespace(std::string in);
 
 std::vector<std::string> splitstr(const std::string& in, const char delim = ' ');
+void clear_screen();
+
+std::optional<std::string> input();
+std::optional<std::string> getpasswd();
 
 // https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
-inline void toggle_stdin_echo(bool enable = true) {
-#ifdef _WIN32
-    // Windows Implementation using GetStdHandle and SetConsoleMode
-    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE); 
-    DWORD console_mode;
-    GetConsoleMode(handle, &console_mode);
+void toggle_stdin_echo(bool enable = true);
 
-    if (!enable)
-        console_mode &= ~ENABLE_ECHO_INPUT; // Disable echo
-    else
-        console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
+namespace exc 
+{
+    class Exception
+        : public std::exception 
+    {
+    public:
+        Exception(std::string msg):
+            msg_(msg) {}
 
-    SetConsoleMode(handle, console_mode);
-#else
-    // POSIX/Unix Implementation using termios
-    struct termios ts;
-    // Get current settings
-    tcgetattr(STDIN_FILENO, &ts);
-    
-    if (!enable)
-        ts.c_lflag &= ~ECHO; // Disable echo flag
-    else
-        ts.c_lflag |= ECHO;  // Enable echo flag
+        template<class... Args>
+        Exception(std::format_string<Args...> msg, Args&&... args):
+            msg_(std::format(msg, std::forward<Args>(args)...)) {}
+        
+        const char* what() const noexcept {
+            return msg_.c_str();
+        }
+    protected:
+        std::string msg_;
+    };
 
-    // Apply new settings immediately
-    (void) tcsetattr(STDIN_FILENO, TCSANOW, &ts);
-#endif
+    class FileNotFound   : public Exception { using Exception::Exception; };
+    class AsertionFailed : public Exception { using Exception::Exception; };
+    class ValueMismatch  : public Exception { using Exception::Exception; };
+    class NotInitialized : public Exception { using Exception::Exception; };
+    class FileMalformed  : public Exception { using Exception::Exception; };
+    class AlreadyExists  : public Exception { using Exception::Exception; };
+    class NotFound       : public Exception { using Exception::Exception; };
+    class NotImplemented : public Exception { using Exception::Exception; };
+    class EncryptionError: public Exception { using Exception::Exception; };
+    class DecryptionError: public Exception { using Exception::Exception; };
+    class InvalidKey     : public Exception { using Exception::Exception; };
+} // namespace exc;
+
+template <class... Args>
+[[noreturn]] void FATAL(std::format_string<Args...> prompt, Args&&... args) 
+{
+    std::cerr << std::format(prompt, std::forward<Args>(args)...);
+    exit(EXIT_FAILURE);
 }
 
 template <class... Args>
@@ -106,15 +120,6 @@ std::optional<std::string> input(std::format_string<Args...> prompt, Args&&... a
     return out;
 }
 
-inline void clear_screen() 
-{
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
-}
-
 // Returns std::nullopt on EOF (ctrl + d)
 template <class... Args>
 std::optional<std::string> getpasswd(std::format_string<Args...> prompt, Args&&... args)
@@ -136,51 +141,3 @@ std::optional<std::string> getpasswd(std::format_string<Args...> prompt, Args&&.
     toggle_stdin_echo(true);
     return out;
 }
-
-inline std::optional<std::string> input() 
-{
-    return input("");
-}
-
-inline std::optional<std::string> getpasswd() 
-{
-    return getpasswd("");
-}
-
-
-namespace ceeper {
-    // 0 - Tag, 1 - Login, 2 - Password
-    using Triplet = std::array<std::string, 3>;
-}
-
-namespace exc {
-    class Exception
-        : public std::exception 
-    {
-    public:
-        Exception(std::string msg):
-            msg_(msg) {}
-
-        template<class... Args>
-        Exception(std::format_string<Args...> msg, Args&&... args):
-            msg_(std::format(msg, std::forward<Args>(args)...)) {}
-        
-        const char* what() const noexcept {
-            return msg_.c_str();
-        }
-    protected:
-        std::string msg_;
-    };
-
-    class FileNotFound   : public Exception { using Exception::Exception; };
-    class AsertionFailed : public Exception { using Exception::Exception; };
-    class ValueMismatch  : public Exception { using Exception::Exception; };
-    class NotInitialized : public Exception { using Exception::Exception; };
-    class FileMalformed  : public Exception { using Exception::Exception; };
-    class EncryptionError: public Exception { using Exception::Exception; };
-    class DecryptionError: public Exception { using Exception::Exception; };
-    class AlreadyExists  : public Exception { using Exception::Exception; };
-    class NotFound       : public Exception { using Exception::Exception; };
-    class NotImplemented : public Exception { using Exception::Exception; };
-
-} // namespace exc;
