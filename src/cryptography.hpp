@@ -141,4 +141,6 @@ private:
     int iterations_;
     std::unique_ptr<ACryptographyBackend> backend_;
     std::string backend_name_;
+
+    std::unique_ptr<ACryptographyBackend> make_backend();
 };

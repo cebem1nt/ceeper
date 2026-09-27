@@ -16,25 +16,22 @@ public:
     int add_triplet(const std::string& tag, bool show_password = false,
                     std::optional<std::string> password = std::nullopt);
 
-    int get_triplet(const std::string& tag, bool get_login = false, bool do_print = false);
-
+    int get_triplet(const std::string& tag, bool get_login, bool do_print = false);
     int remove_triplet(const std::string& tag, bool force = false);
-
     int edit_triplet(const std::string& tag);
 
     int find_triplet(const std::string& part,bool do_show = false);
-    int list_triplets(bool ntriplets = false, bool do_show = false);
+    int list_triplets(bool ntriplets, bool do_show = false);
 
-    int generate_password(uint length = 16, bool no_letters = false,
-                          bool no_special_syms = false, bool do_print = false);
+    int generate_password(uint length, bool no_letters, bool no_special_syms, 
+                          bool do_print = false);
 
-    int gen_and_add_triplet(const std::string& tag, uint length = 16, bool no_letters = false, 
-                            bool no_special_syms = false, bool do_print = false);
+    int gen_and_add_triplet(const std::string& tag, uint length, bool no_letters, 
+                            bool no_special_syms, bool do_print = false);
 
-    int change_locker(const std::string& dest, bool is_abs = false, bool do_create = false);
-
-    int generate_token(bool force = false);
-    int print_locker(bool is_abs = false);
+    int change_locker(const std::string& dest, bool is_abs, bool do_create);
+    int generate_token(bool force);
+    int print_locker(bool is_abs);
 
     int encrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);
     int decrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);

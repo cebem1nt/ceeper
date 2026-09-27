@@ -37,6 +37,76 @@ static std::array<uchar, DERIVE_KEY_SIZE> derive_key(
     return derived_key;
 }
 
+// TODO evp_encrypt, evp_decrypt leaks after throw 
+
+template <const EVP_CIPHER* (*cipher_fn)()>
+static inline std::vector<uchar> evp_encrypt(const uchar* plaintext, uint plaintext_size,
+                                             const uchar* key, const uchar* iv, int* out_len)
+{
+    const EVP_CIPHER* cipher = cipher_fn();
+    EVP_CIPHER_CTX*   ctx    = EVP_CIPHER_CTX_new();
+
+    if (!ctx)
+        FATAL("evp_encrypt: EVP_CIPHER_CTX_new failed");
+
+    auto out = std::vector<uchar>(
+        plaintext_size + EVP_CIPHER_block_size(cipher));
+        
+    int update_len = 0, final_len = 0, total_len = 0;
+    
+    if (EVP_EncryptInit(ctx, cipher, key, iv) != 1)
+        throw exc::EncryptionError("evp_encrypt: EVP_EncryptInit failed");
+
+    if (EVP_EncryptUpdate(ctx, out.data(), &update_len, plaintext, plaintext_size) != 1)
+        throw exc::EncryptionError("evp_encrypt: EVP_EncryptUpdate failed");
+    
+    if (EVP_EncryptFinal(ctx, out.data() + update_len, &final_len) != 1)
+        throw exc::EncryptionError("evp_encrypt: EVP_EncryptFinal failed");
+
+    EVP_CIPHER_CTX_free(ctx);
+
+    total_len = update_len + final_len;
+    out.resize(total_len);
+
+    if (out_len)
+        *out_len = total_len;
+
+    return out;
+}
+
+template <const EVP_CIPHER* (*cipher_fn)()>
+static inline std::vector<uchar> evp_decrypt(const uchar* ciphertext, uint ciphertext_size,
+                                             const uchar* key, const uchar* iv, int* out_len)
+{
+    const EVP_CIPHER* cipher = cipher_fn();
+    EVP_CIPHER_CTX*   ctx    = EVP_CIPHER_CTX_new();
+
+    if (!ctx)
+        FATAL("evp_decrypt: EVP_CIPHER_CTX_new failed");
+
+    auto out = std::vector<uchar>(
+        ciphertext_size + EVP_CIPHER_block_size(cipher));
+
+    int update_len = 0, final_len = 0, total_len = 0;
+
+    if (EVP_DecryptInit(ctx, cipher, key, iv) != 1)
+        throw exc::DecryptionError("evp_decrypt: EVP_DecryptInit failed!");
+
+    if (EVP_DecryptUpdate(ctx, out.data(), &update_len, ciphertext, ciphertext_size) != 1)
+        throw exc::DecryptionError("evp_decrypt: EVP_DecryptUpdate failed");
+
+    if (EVP_DecryptFinal(ctx, out.data() + update_len, &final_len) != 1)
+        throw exc::DecryptionError("evp_decrypt: invalid ciphertext or padding");
+
+    total_len = update_len + final_len;
+    out.resize(total_len);
+
+    if (out_len)
+        *out_len = total_len;
+
+    return out;
+}
+
 static inline bool is_equal(const std::vector<uchar>& a,
                             const std::vector<uchar>& b)
 {
@@ -73,7 +143,6 @@ static std::vector<uchar> base64_decode(const std::string& in)
 
     return out;
 }
-
 
 // https://gist.github.com/barrysteyn/7308212
 static std::string base64_encode(const std::vector<uchar>& in) 
@@ -137,32 +206,18 @@ std::string AESBackend::encrypt(std::string_view data)
     if (!key_set_)
         throw exc::NotInitialized("Key was not initialized!");
 
-    const EVP_CIPHER* cipher = EVP_aes_256_cbc();
-    EVP_CIPHER_CTX*   ctx = EVP_CIPHER_CTX_new();
+    int ciphertext_len = 0;
+    const auto iv = urandom(AES_IV_LENGTH);
 
-    if (!ctx)
-        FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
+    auto ciphertext = evp_encrypt<EVP_aes_256_cbc>(
+        RC<const uchar*>(data.data()), 
+        data.size(), 
+        key_.data(), 
+        iv.data(),
+        &ciphertext_len 
+    );
 
-    const auto* input = RC<const uchar*>(data.data());
-    const auto  iv    = urandom(AES_IV_LENGTH);
-    auto ciphertext   = std::vector<uchar>(data.size() + EVP_CIPHER_block_size(cipher));
-    
-    int update_len = 0, final_len = 0, ciphertext_len = 0;
-
-    if (EVP_EncryptInit(ctx, cipher, key_.data(), iv.data()) != 1)
-        throw exc::EncryptionError("AESBackend: EVP_EncryptInit failed");   
-
-    if (EVP_EncryptUpdate(ctx, ciphertext.data(), &update_len, input, data.size()) != 1) 
-        throw exc::EncryptionError("AESBackend: EVP_EncryptUpdate failed");
-
-    if (EVP_EncryptFinal(ctx, ciphertext.data() + update_len, &final_len) != 1)
-        throw exc::EncryptionError("AESBackend: EVP_EncryptFinal failed");
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    ciphertext_len = update_len + final_len;
     auto out = std::vector<uchar>(iv.begin(), iv.end());
-
     out.insert(out.end(), ciphertext.begin(), ciphertext.begin() + ciphertext_len);
 
     return base64url_encode(out);
@@ -173,36 +228,22 @@ std::string AESBackend::decrypt(std::string_view data)
     if (!key_set_)
         throw exc::NotInitialized("Key was not initialized!");
     
-    const EVP_CIPHER* cipher = EVP_aes_256_cbc();
-    EVP_CIPHER_CTX*   ctx    = EVP_CIPHER_CTX_new();
-
-    if (!ctx)
-        FATAL("AESBackend: EVP_CIPHER_CTX_new failed");
-
     const auto   encrypted  = base64url_decode(std::string(data));
     const uchar* iv         = encrypted.data();
     const uchar* ciphertext = encrypted.data() + AES_IV_LENGTH;
     
-    int update_len = 0, final_len = 0,
-        ciphertext_len = encrypted.size() - AES_IV_LENGTH;
+    int ciphertext_size = encrypted.size() - AES_IV_LENGTH;
 
-    auto plaintext = std::vector<uchar>(
-        ciphertext_len + EVP_CIPHER_block_size(cipher));
-
-    if (EVP_DecryptInit(ctx, cipher, key_.data(), iv) != 1)
-        throw exc::DecryptionError("AESBackend: EVP_DecryptInit failed!");
-
-    if (EVP_DecryptUpdate(ctx, plaintext.data(), &update_len, ciphertext, ciphertext_len) != 1)
-        throw exc::DecryptionError("AESBackend: EVP_DecryptUpdate failed");
-
-    if (EVP_DecryptFinal(ctx, plaintext.data() + update_len, &final_len) != 1)
-        throw exc::DecryptionError("AESBackend: invalid ciphertext or padding");
-
-    EVP_CIPHER_CTX_free(ctx);
+    auto plaintext = evp_decrypt<EVP_aes_256_cbc>(
+        ciphertext, 
+        ciphertext_size, 
+        key_.data(), 
+        iv, 
+        nullptr
+    );
 
     return std::string(
-        RC<char*>(plaintext.data()),
-        update_len + final_len
+        RC<char*>(plaintext.data())
     );
 }
 
@@ -239,36 +280,23 @@ std::string FernetBackend::encrypt(std::string_view data)
 {
     if (!key_set_)
         throw exc::NotInitialized("Cipher wasn't initialized");
-
-    const EVP_CIPHER* cipher = EVP_aes_128_cbc();
-    EVP_CIPHER_CTX*   ctx    = EVP_CIPHER_CTX_new();
-
-    if (!ctx)
-        FATAL("FernetBackend: EVP_CIPHER_CTX_new failed");
     
-    const auto* input = RC<const uchar*>(data.data());
-    const auto  iv    = urandom(FERNET_IV_LENGTH);
-    auto ciphertext   = std::vector<uchar>(data.size() + EVP_CIPHER_block_size(cipher));
+    const auto iv = urandom(FERNET_IV_LENGTH);
 
-    int update_len = 0, final_len = 0;
-
-    if (EVP_EncryptInit(ctx, cipher, encryption_key_.data(), iv.data()) != 1)
-        throw exc::EncryptionError("FernetBackend: EVP_EncryptInit failed");
-
-    if (EVP_EncryptUpdate(ctx, ciphertext.data(), &update_len, input, data.size()) != 1)
-        throw exc::EncryptionError("FernetBackend: EVP_EncryptUpdate failed");
-    
-    if (EVP_EncryptFinal(ctx, ciphertext.data() + update_len, &final_len) != 1)
-        throw exc::EncryptionError("FernetBackend: EVP_EncryptFinal failed");
-
-    EVP_CIPHER_CTX_free(ctx);
-    ciphertext.resize(update_len + final_len);
+    auto ciphertext = evp_encrypt<EVP_aes_128_cbc>(
+        RC<const uchar*>(data.data()), 
+        data.size(), 
+        encryption_key_.data(), 
+        iv.data(), 
+        nullptr
+    );
 
     std::vector<uchar> token;
+
     token.reserve(ciphertext.size() + FERNET_METAINFO_SIZE);
     token.push_back(FERNET_VERSION);
 
-    uint64_t ts = SC<uint64_t>(std::time(nullptr));
+    uint64_t ts = std::time(nullptr);
 
     for (int i = 7; i >= 0; i--) {
         token.push_back(SC<uchar>((ts >> (i * 8)) & 0xFF));
@@ -303,35 +331,21 @@ std::string FernetBackend::decrypt(std::string_view data)
     if (!is_equal(expected_mac, actual_mac))
         throw exc::DecryptionError("Token doesn't match");
 
-    const EVP_CIPHER* cipher = EVP_aes_128_cbc();
-    EVP_CIPHER_CTX*   ctx    = EVP_CIPHER_CTX_new();
-
-    if (!ctx)
-        FATAL("FernetBackend: EVP_CIPHER_CTX_new failed");
-    
     const uchar* iv         = token.data() + 1 + FERNET_TIMESTAMP_SIZE;
     const uchar* ciphertext = token.data() + 1 + FERNET_TIMESTAMP_SIZE + FERNET_IV_LENGTH;
 
-    int update_len = 0, final_len = 0, 
-        ciphertext_len = SC<int>(token.size() - FERNET_METAINFO_SIZE);
+    int ciphertext_size = token.size() - FERNET_METAINFO_SIZE;
 
-    auto plaintext = std::vector<uchar>(
-        ciphertext_len + EVP_CIPHER_block_size(cipher));
-
-    if (EVP_DecryptInit(ctx, cipher, encryption_key_.data(), iv) != 1)
-        throw exc::DecryptionError("FernetBackend: EVP_DecryptInit failed");
-
-    if (EVP_DecryptUpdate(ctx, plaintext.data(), &update_len, ciphertext, ciphertext_len) != 1)
-        throw exc::DecryptionError("FernetBackend: EVP_DecryptUpdate failed");
-
-    if (EVP_DecryptFinal(ctx, plaintext.data() + update_len, &final_len) != 1)
-        throw exc::DecryptionError("FernetBackend: invalid ciphertext or padding");
-
-    EVP_CIPHER_CTX_free(ctx);
+    auto plaintext = evp_decrypt<EVP_aes_128_cbc>(
+        ciphertext, 
+        ciphertext_size, 
+        encryption_key_.data(), 
+        iv, 
+        nullptr
+    );
 
     return std::string(
-        RC<char*>(plaintext.data()), 
-        update_len + final_len
+        RC<char*>(plaintext.data())
     );
 }
 
@@ -341,11 +355,14 @@ CryptographySystem::CryptographySystem(int iterations, std::string backend)
     
     backend_name_ = backend;
     iterations_ = iterations;
+    backend_ = make_backend();
+}
 
-    if (backend == "aes")
-        backend_ = std::make_unique<AESBackend>(iterations);   
-    else
-        backend_ = std::make_unique<FernetBackend>(iterations);
+std::unique_ptr<ACryptographyBackend> CryptographySystem::make_backend() 
+{
+    if (backend_name_ == "aes")
+        return std::make_unique<AESBackend>(iterations_);
+    return std::make_unique<FernetBackend>(iterations_);
 }
 
 void CryptographySystem::init_cipher(
@@ -451,17 +468,11 @@ ceeper::Triplet CryptographySystem::decrypt_triplet(std::string data)
 void CryptographySystem::encrypt_file(const std::string& passphrase, const std::string& token,
                                       std::istream& src, std::ostream& dest)
 {
-    auto salt = surandom(16);
-
     // We need a tmp backend here to not mess up original one
-    std::unique_ptr<ACryptographyBackend> tmpb;
-
-    if (backend_name_ == "aes")
-        tmpb = std::make_unique<AESBackend>(iterations_);   
-    else
-        tmpb = std::make_unique<FernetBackend>(iterations_);
-
+    auto tmpb = make_backend();
+    auto salt = surandom(16);
     tmpb->init_cipher(passphrase, salt, token);
+
     auto buf = std::array<char, FILE_CHUNK_SIZE>();
     dest << salt;
     
@@ -482,18 +493,13 @@ void CryptographySystem::encrypt_file(const std::string& passphrase, const std::
 void CryptographySystem::decrypt_file(const std::string& passphrase, const std::string& token,
                                       std::istream& src, std::ostream& dest)
 {
-    std::unique_ptr<ACryptographyBackend> tmpb;
-
-    if (backend_name_ == "aes")
-        tmpb = std::make_unique<AESBackend>(iterations_);   
-    else
-        tmpb = std::make_unique<FernetBackend>(iterations_);
-
+    auto tmpb = make_backend();
     auto salt = std::string(16, '\0');   
     src.read(salt.data(), 16);
-    auto buf = std::array<char, FILE_CHUNK_SIZE>();
 
     tmpb->init_cipher(passphrase, salt, token);
+
+    auto buf = std::array<char, FILE_CHUNK_SIZE>();
 
     while (src) {
         src.read(buf.data(), buf.size());
