@@ -13,14 +13,14 @@
 #include <regex>
 #include <vector>
 
-static std::array<uchar, DERIVE_KEY_LENGTH> derive_key(
+static std::array<uchar, DERIVE_KEY_SIZE> derive_key(
     const std::string& passphrase,
     const std::string& salt,
     const std::string& token,
     int iterations
 )
 {
-    std::array<uchar, DERIVE_KEY_LENGTH> derived_key;
+    std::array<uchar, DERIVE_KEY_SIZE> derived_key;
     std::string combined_salt = token + salt;    
     
     PKCS5_PBKDF2_HMAC(
@@ -30,46 +30,19 @@ static std::array<uchar, DERIVE_KEY_LENGTH> derive_key(
         combined_salt.length(),
         iterations,
         EVP_sha256(),
-        DERIVE_KEY_LENGTH,
+        DERIVE_KEY_SIZE,
         derived_key.data()
     );
 
     return derived_key;
 }
 
-static std::vector<uchar> hmac_sha256(const std::vector<uchar>& key,
-                                        const std::vector<uchar>& data)
-{
-    std::vector<uchar> out(EVP_MAX_MD_SIZE);
-    uint len = 0;
-
-    HMAC(EVP_sha256(),
-        key.data(), static_cast<int>(key.size()),
-        data.data(), data.size(),
-        out.data(), &len);
-
-    out.resize(len);
-    return out;
-}
-
-static bool is_equal(const std::vector<uchar>& a,
-                     const std::vector<uchar>& b)
+static inline bool is_equal(const std::vector<uchar>& a,
+                            const std::vector<uchar>& b)
 {
     if (a.size() != b.size())
         return false;
     return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
-}
-
-static uint base_64url_decode_calc_length(const std::string& in) 
-{
-	int padding = 0;
-
-    if (in.ends_with("=="))
-        padding = 2;
-    else if (in.ends_with("="))
-        padding = 1;
-
-    return (in.length()*3)/4 - padding;
 }
 
 // Accepts padded input only, as base64url_encode returns
@@ -78,7 +51,14 @@ static std::vector<uchar> base64_decode(const std::string& in)
     BIO* bio;
     BIO* b64;
     
-    uint calculated_len = base_64url_decode_calc_length(in);
+    int padding = 0;
+
+    if (in.ends_with("=="))
+        padding = 2;
+    else if (in.ends_with("="))
+        padding = 1;
+
+    uint decoded_len = (in.length()*3)/4 - padding;
 
     bio = BIO_new_mem_buf(in.data(), -1);
     b64 = BIO_new(BIO_f_base64());
@@ -86,7 +66,7 @@ static std::vector<uchar> base64_decode(const std::string& in)
 
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Do not use newlines to flush buffer
     
-    auto out = std::vector<uchar>(calculated_len);
+    auto out = std::vector<uchar>(decoded_len);
 
     BIO_read(bio, out.data(), out.size());
     BIO_free_all(bio);
@@ -231,9 +211,28 @@ void FernetBackend::init_cipher(const std::string& passphrase,
                                 const std::string& token) 
 {
     key_ = derive_key(passphrase, salt, token, iterations_);
-    signing_key_ = std::vector<uchar>(key_.begin(), key_.begin() + 16);
-    encryption_key_ = std::vector<uchar> (key_.begin() + 16, key_.end());
+
+    // yeah, i love explicity
+    signing_key_ = std::span<uchar>(key_.data(), FERNET_SKEY_SIZE);
+    encryption_key_ = std::span<uchar> (key_.data() + FERNET_SKEY_SIZE, FERNET_EKEY_SIZE);
+
     key_set_ = true;
+}
+
+std::vector<uchar> FernetBackend::hmac(const std::vector<uchar>& data)
+{
+    auto out = std::vector<uchar>(EVP_MAX_MD_SIZE);
+    uint len = 0;
+
+    HMAC(
+        EVP_sha256(),
+        signing_key_.data(), signing_key_.size(),
+        data.data(), data.size(),
+        out.data(), &len
+    );
+
+    out.resize(len);
+    return out;
 }
 
 std::string FernetBackend::encrypt(std::string_view data)
@@ -278,7 +277,7 @@ std::string FernetBackend::encrypt(std::string_view data)
     token.insert(token.end(), iv.begin(), iv.end());
     token.insert(token.end(), ciphertext.begin(), ciphertext.end());
 
-    const auto mac = hmac_sha256(signing_key_, token);
+    const auto mac = hmac(token);
     token.insert(token.end(), mac.begin(), mac.end());
 
     return base64url_encode(token);
@@ -299,7 +298,7 @@ std::string FernetBackend::decrypt(std::string_view data)
 
     auto signed_part  = std::vector<uchar>(token.begin(), token.end() - FERNET_HMAC_SIZE);
     auto expected_mac = std::vector<uchar>(token.end() - FERNET_HMAC_SIZE, token.end());
-    auto actual_mac   = hmac_sha256(signing_key_, signed_part);
+    auto actual_mac   = hmac(signed_part);
 
     if (!is_equal(expected_mac, actual_mac))
         throw exc::DecryptionError("Token doesn't match");

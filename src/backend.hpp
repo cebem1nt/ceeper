@@ -23,11 +23,10 @@ public:
 
     void trigger_event(const std::string& event);
 
-    std::unordered_map<std::string,
-        std::vector<EventHandler>> events_ = {};
-
 private:
     std::vector<std::thread> pending_threads_ = {};
+    std::unordered_map<std::string,
+        std::vector<EventHandler>> events_ = {};
 };
 
 class Ceeper:
@@ -36,21 +35,18 @@ class Ceeper:
     public EventManager
 {
 public:
-    Ceeper(
-        uint token_size, uint salt_size, uint iterations,
-        std::string backend, const char* program_name, bool is_portable = false
-    ) 
-    : FileSystem(salt_size, token_size, std::filesystem::path(program_name).parent_path(), is_portable), 
-      CryptographySystem(iterations, backend)
+    Ceeper(uint token_size, uint salt_size, uint iterations, std::string backend, 
+           const char* program_name, bool is_portable = false)
+        : FileSystem(salt_size, token_size, std::filesystem::path(program_name).parent_path(), is_portable), 
+          CryptographySystem(iterations, backend) 
     {
         trigger_event("init");
     }
 
     bool unlock(const std::string& passphrase);
 
-    std::string generate_password(
-        uint length, bool no_letters = false, bool no_special_syms = false 
-    );
+    std::string generate_password(uint length, bool no_letters = false, 
+                                  bool no_special_syms = false);
     
     std::vector<ceeper::Triplet> list_triplets();
     std::vector<ceeper::Triplet> search_for_triplets(const std::string& tag_part);

@@ -39,16 +39,6 @@ std::vector<std::string> splitstr(const std::string& in, const char delim)
     return out;
 }
 
-std::optional<std::string> input() 
-{
-    return input("");
-}
-
-std::optional<std::string> getpasswd() 
-{
-    return getpasswd("");
-}
-
 std::vector<uchar> urandom(uint nbytes) 
 {
     // Might not be very good

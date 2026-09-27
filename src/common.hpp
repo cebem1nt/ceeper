@@ -58,7 +58,6 @@ inline void toggle_stdin_echo(bool enable = true) {
         console_mode |= ENABLE_ECHO_INPUT;  // Enable echo
 
     SetConsoleMode(handle, console_mode);
-
 #else
     // POSIX/Unix Implementation using termios
     struct termios ts;
@@ -138,8 +137,16 @@ std::optional<std::string> getpasswd(std::format_string<Args...> prompt, Args&&.
     return out;
 }
 
-std::optional<std::string> input();
-std::optional<std::string> getpasswd();
+inline std::optional<std::string> input() 
+{
+    return input("");
+}
+
+inline std::optional<std::string> getpasswd() 
+{
+    return getpasswd("");
+}
+
 
 namespace ceeper {
     // 0 - Tag, 1 - Login, 2 - Password
