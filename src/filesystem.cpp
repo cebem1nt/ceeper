@@ -106,6 +106,7 @@ namespace salt {
 
 CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable) 
 {
+    // TODO macro it
     fs::path default_stroage_dir; 
     fs::path prefered_storage_dir;
 

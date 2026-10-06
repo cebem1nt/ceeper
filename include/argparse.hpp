@@ -2275,11 +2275,15 @@ public:
 
   void add_subparser(std::vector<std::string> aliases, ArgumentParser &parser) {
     add_subparser(parser);
+    auto subparser_it = m_subparsers.back();
+    subparser_it.get().m_description += std::format(" [aliases: {}]", aliases);
+
     for (const auto& alias : aliases) {
-        auto& ap = m_subparsers_alias.emplace_back(std::make_unique<argparse::ArgumentParser>(alias));
-        ap->add_parents(parser);
-        ap->set_suppress(true);
-        add_subparser(*ap);
+      auto& ap = m_subparsers_alias.emplace_back(
+        std::make_unique<argparse::ArgumentParser>(alias));
+      ap->add_parents(parser);
+      ap->set_suppress(true);
+      add_subparser(*ap);
     }
   }
 

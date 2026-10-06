@@ -152,29 +152,29 @@ cee
 Usage: cee [--help] [--current] [--force] [--absolute] [--print] [--gen] [--no-letters] [--no-symbols] [--length VAR] [--encrypt FILE] [--decrypt FILE] [--out OUT] [--in-place] [--generate-token] {add,change,edit,find,get,list,remove}
 
 Subcommands:
-  add                add a new triplet with given TAG
-  change             changes current locker file to LOCKER
-  edit               interactively edit triplet[s] by TAG[s]
-  find               look for triplets by given tag PART[s]
-  get                get password by TAG
-  list               list triplets
-  remove             remove triplet[s] by TAG[s]
+  add                add a new triplet with given TAG [aliases: ["a"]]
+  change             changes current locker file to LOCKER [aliases: ["c", "ch"]]
+  edit               interactively edit triplet[s] by TAG[s] [aliases: ["e"]]
+  find               look for triplets by given tag PART[s] [aliases: ["f"]]
+  get                get password by TAG [aliases: ["g"]]
+  list               list triplets [aliases: ["l", "ls"]]
+  remove             remove triplet[s] by TAG[s] [aliases: ["r", "rm"]]
 
 Optional arguments:
-  -h, --help          shows help message and exits
-  -c, --current       print current locker path
-  -f, --force         force action, don't prompt for confirmation
-  -a, --absolute      treat locker paths as non relative to storage dir
-  -p, --print         print to stdout instead of copying
-  -g, --gen           generate a password, copy, and store it with tag
-  -nl, --no-letters   generate a password without any letters.
-  -ns, --no-symbols   generate a password without any special symbols.
+  -h, --help          shows help message and exits 
+  -c, --current       print current locker path 
+  -f, --force         force action, don't prompt for confirmation 
+  -a, --absolute      treat locker paths as non relative to storage dir 
+  -p, --print         print to stdout instead of copying 
+  -g, --gen           generate a password, copy, and store it with tag 
+  -nl, --no-letters   generate a password without any letters. 
+  -ns, --no-symbols   generate a password without any special symbols. 
   -l, --length        length for newly generated password [default: 16]
-  -e, --encrypt FILE  prompts for password, encrypts given file
-  -d, --decrypt FILE  prompts for password, decrypts given file
-  -o, --out OUT       exact out file when using -e/-d
-  -i, --in-place      after encrypting / decrypting, remove original file
-  --generate-token    generate a new token
+  -e, --encrypt FILE  prompts for password, encrypts given file 
+  -d, --decrypt FILE  prompts for password, decrypts given file 
+  -o, --out OUT       exact out file when using -e/-d 
+  -i, --in-place      after encrypting / decrypting, remove original file 
+  --generate-token    generate a new token 
 
 Each password file is referred to as a "locker" and has a .lk extension.
 You can manage multiple lockers, each containing different sets of passwords.
