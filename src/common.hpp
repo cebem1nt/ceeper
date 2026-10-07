@@ -5,17 +5,8 @@
 #include <vector>
 #include <iostream>
 
-#if defined (__ANDROID__)
-# define PLATFORM "Android"
-#elif defined (_WIN32)
+#if defined (_WIN32)
 # include <windows.h>
-# define PLATFORM "Windows"
-#elif defined (__APPLE__) || defined (__MACH__)
-# define PLATFORM "Darwin"
-#elif defined(__linux__)
-# define PLATFORM "Posix"
-#else
-# error Unsupported platform
 #endif
 
 #ifdef __linux__

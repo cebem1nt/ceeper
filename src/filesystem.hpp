@@ -13,8 +13,6 @@ public:
     std::filesystem::path data_dir_;
     std::filesystem::path storage_dir_;
 
-    std::string platform_;
-
     CrossPlatform(std::filesystem::path current_dir, bool is_portable);
 };
 

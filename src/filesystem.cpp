@@ -3,7 +3,6 @@
 
 #include <csignal>
 #include <iostream>
-#include <unordered_map>
 #include <fstream>
 
 namespace fs = std::filesystem;
@@ -106,37 +105,27 @@ namespace salt {
 
 CrossPlatform::CrossPlatform(fs::path current_dir, bool is_portable) 
 {
-    // TODO macro it
     fs::path default_stroage_dir; 
     fs::path prefered_storage_dir;
 
-    platform_ = PLATFORM;
     user_dir_ = get_home();
     
     default_stroage_dir = user_dir_ / ".keeper_storage";
     prefered_storage_dir = get_pathenv("KEEPER_STORAGE_DIR", default_stroage_dir);
 
     if (is_portable) {
-        platform_ = "Portable";
         storage_dir_ = current_dir / "storage";
+        data_dir_ = current_dir / "data";
     } else {
         storage_dir_ = prefered_storage_dir;
+#if defined (__ANDROID__) || defined (__APPLE__) || defined (__MACH__) || defined(__linux__)
+        data_dir_ = user_dir_ / ".local" / "share" / "keeper";
+#elif defined (_WIN32)
+        data_dir_ = get_pathenv("LOCALAPPDATA", user_dir_) / "keeper";
+#else
+#       error Unsupported platform
+#endif
     }
-
-    std::unordered_map<std::string, fs::path> data_dirs{
-        { "Portable", current_dir / "data"                             },
-        { "Posix",    user_dir_   / ".local" / "share" / "keeper"      },
-        { "Android",  user_dir_   / ".local" / "share" / "keeper"      },
-        { "Darwin",   user_dir_   / ".local" / "share" / "keeper"      },
-        { "Windows",  get_pathenv("LOCALAPPDATA", user_dir_) / "keeper"},
-    };
-
-    auto it = data_dirs.find(platform_);
-
-    if (it != data_dirs.end())
-        data_dir_ = it->second;
-    else 
-        FATAL("Unsupported operating system {}", platform_);
 
     fs::create_directories(data_dir_);
     fs::create_directories(storage_dir_);
