@@ -146,35 +146,42 @@ Interactive / REPL mode
 cee
 ```
 
+Encrypt file `seecrets.txt` but use contents of `key.txt` as encryption passphrase
+
+```sh
+cee -e secrets.txt --key-file key.txt
+```
+
 ### List of commands
 
 ```
-Usage: cee [--help] [--current] [--force] [--absolute] [--print] [--gen] [--no-letters] [--no-symbols] [--length VAR] [--encrypt FILE] [--decrypt FILE] [--out OUT] [--in-place] [--generate-token] {add,change,edit,find,get,list,remove}
+Usage: cee [--help] [--current] [--force] [--absolute] [--print] [--gen] [--no-letters] [--no-symbols] [--length VAR] [--encrypt FILE] [--decrypt FILE] [--out OUT] [--in-place] [--key-file FILE] [--generate-token] {add,change,edit,find,get,list,remove}
 
 Subcommands:
-  add                add a new triplet with given TAG [aliases: ["a"]]
-  change             changes current locker file to LOCKER [aliases: ["c", "ch"]]
-  edit               interactively edit triplet[s] by TAG[s] [aliases: ["e"]]
-  find               look for triplets by given tag PART[s] [aliases: ["f"]]
-  get                get password by TAG [aliases: ["g"]]
-  list               list triplets [aliases: ["l", "ls"]]
-  remove             remove triplet[s] by TAG[s] [aliases: ["r", "rm"]]
+  add                  add a new triplet with given TAG [aliases: ["a"]]
+  change               changes current locker file to LOCKER [aliases: ["c", "ch"]]
+  edit                 interactively edit triplet[s] by TAG[s] [aliases: ["e"]]
+  find                 look for triplets by given tag PART[s] [aliases: ["f"]]
+  get                  get password by TAG [aliases: ["g"]]
+  list                 list triplets [aliases: ["l", "ls"]]
+  remove               remove triplet[s] by TAG[s] [aliases: ["r", "rm"]]
 
 Optional arguments:
-  -h, --help          shows help message and exits 
-  -c, --current       print current locker path 
-  -f, --force         force action, don't prompt for confirmation 
-  -a, --absolute      treat locker paths as non relative to storage dir 
-  -p, --print         print to stdout instead of copying 
-  -g, --gen           generate a password, copy, and store it with tag 
-  -nl, --no-letters   generate a password without any letters. 
-  -ns, --no-symbols   generate a password without any special symbols. 
-  -l, --length        length for newly generated password [default: 16]
-  -e, --encrypt FILE  prompts for password, encrypts given file 
-  -d, --decrypt FILE  prompts for password, decrypts given file 
-  -o, --out OUT       exact out file when using -e/-d 
-  -i, --in-place      after encrypting / decrypting, remove original file 
-  --generate-token    generate a new token 
+  -h, --help            shows help message and exits 
+  -c, --current         print current locker path 
+  -f, --force           force action, don't prompt for confirmation 
+  -a, --absolute        treat locker paths as non relative to storage dir 
+  -p, --print           print to stdout instead of copying 
+  -g, --gen             generate a password, copy, and store it with tag 
+  -nl, --no-letters     generate a password without any letters. 
+  -ns, --no-symbols     generate a password without any special symbols. 
+  -l, --length          length for newly generated password [default: 16]
+  -e, --encrypt FILE    prompts for password, encrypts given file using your token 
+  -d, --decrypt FILE    prompts for password, decrypts given file using your token 
+  -o, --out OUT         use this out file with -e/-d 
+  -i, --in-place        after encrypting / decrypting, remove original file 
+  -kf, --key-file FILE  treat contents of this file as passphrase (do not pass too big files) 
+  --generate-token      generate a new token 
 
 Each password file is referred to as a "locker" and has a .lk extension.
 You can manage multiple lockers, each containing different sets of passwords.
