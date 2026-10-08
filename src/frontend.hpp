@@ -12,6 +12,7 @@ public:
     int auth();
     int registrate();
     int login();
+    int key_file_auth(std::filesystem::path key_file);
 
     int add_triplet(const std::string& tag, bool show_password = false,
                     std::optional<std::string> password = std::nullopt);
@@ -33,8 +34,11 @@ public:
     int generate_token(bool force);
     int print_locker(bool is_abs);
 
-    int encrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);
-    int decrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove);
+    int encrypt_file(const std::string& file, std::optional<std::string> dest, 
+                     bool do_remove, std::optional<std::filesystem::path> key_file = std::nullopt);
+
+    int decrypt_file(const std::string& file, std::optional<std::string> dest, 
+                     bool do_remove, std::optional<std::filesystem::path> key_file = std::nullopt);
         
     int handle_args(argparse::ArgumentParser& p);
     int interactive_cli(argparse::ArgumentParser& p);

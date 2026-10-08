@@ -1,13 +1,38 @@
 #include "common.hpp"
 
+#include <fstream>
 #include <random>
 #include <algorithm>
 #include <sstream>
+
+namespace fs = std::filesystem;
 
 std::string to_lower(std::string in) 
 {
     std::transform(in.begin(), in.end(), in.data(), ::tolower);
     return in;
+}
+
+std::string readfile(fs::path file) 
+{
+    auto f = std::ifstream(file, std::ios::in | std::ios::binary);
+    const auto size = fs::file_size(file);
+
+    auto out = std::string(size, '\0');
+    f.read(out.data(), size);
+
+    std::size_t first = 0;
+    while (first < out.size() && std::isspace(out[first]))
+        first++;
+
+    std::size_t last = out.size();
+    while (last > first && std::isspace(out[last - 1]))
+        last--;
+
+    out.erase(last);
+    out.erase(0, first);
+    
+    return out;
 }
 
 // https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/

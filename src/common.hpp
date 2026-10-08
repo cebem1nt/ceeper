@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <filesystem>
 
 #if defined (_WIN32)
 # include <windows.h>
@@ -35,6 +36,8 @@ void clear_screen();
 
 std::optional<std::string> input();
 std::optional<std::string> getpasswd();
+
+std::string readfile(std::filesystem::path file);
 
 // https://sqlpey.com/c++/cpp-cross-platform-stdin-echo-control/
 void toggle_stdin_echo(bool enable = true);

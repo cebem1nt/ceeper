@@ -8,6 +8,8 @@
 #include <print>
 #include <unistd.h>
 
+namespace fs = std::filesystem;
+
 using std::println;
 using nargs = argparse::nargs_pattern;
 
@@ -75,6 +77,28 @@ int CLI::auth()
         return registrate();
     else
         return login();
+}
+
+int CLI::key_file_auth(fs::path key_file) 
+{
+    if (!fs::exists(key_file)) {
+        println("Given key file {} does not exist", key_file.string());
+        return 1;
+    }
+
+    auto passwd = readfile(key_file);
+
+    try {
+        if (ceeper_.unlock(passwd))
+            return 0;
+        else
+            println("Incorrect passphrase!");
+    } catch (exc::NotInitialized& e) {
+        println("You dont have a token yet. Generate it with --generate-token or set it manually to {}", 
+                ceeper_.token_file_.string());
+    }
+    
+    exit(1);
 }
 
 int CLI::registrate()  
@@ -364,7 +388,7 @@ int CLI::gen_and_add_triplet(const std::string& tag, uint length, bool no_letter
 int CLI::change_locker(const std::string& dest, bool is_abs, bool do_create)
 {
     try {
-        ceeper_.change_locker_dir(std::filesystem::path(dest), false, !is_abs, do_create);
+        ceeper_.change_locker_dir(fs::path(dest), false, !is_abs, do_create);
         println("\nSuccesfuly changed current locker to: {}\n", dest);
     } catch (exc::Exception& e) {
         println("{}", e.what());
@@ -396,73 +420,106 @@ int CLI::print_locker(bool is_abs)
     return 0;
 }
 
-int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove)
+int CLI::encrypt_file(const std::string& file, std::optional<std::string> dest, 
+                      bool do_remove, std::optional<fs::path> key_file)
 {
-    if (!std::filesystem::exists(file)) {
+    if (!fs::exists(file)) {
         println("Given input file {} does not exist", file);
         return 1;
     }
 
-    while (true) {
-        auto passwd = getpasswd("Create encryption passphrase: ");
+    std::optional<std::string> passwd;
 
-        if (!passwd)
-            return 1; 
-
-        if (passwd->empty()) {
-            println("Passphrase can not be empty!");
-            continue;
+    if (key_file) {
+        if (!fs::exists(*key_file)) {
+            println("Given key file {} does not exist", key_file->string());
+            return 1;
         }
 
-        try {
-            ceeper_.file_encrypt(*passwd, file, dest);
-            break;
-        } catch (exc::AlreadyExists& e) {
-            println("{}", e.what());
-            println("Hint: use -o to provide output file");
+        passwd = readfile(*key_file);
+
+        if (passwd->empty()) {
+            println("Key file is empty!");
             return 1;
+        }
+    } else {
+        while (true) {
+            passwd = getpasswd("Create encryption passphrase: ");
+
+            if (!passwd)
+                return 1; 
+
+            if (passwd->empty()) {
+                println("Passphrase can not be empty!");
+                continue;
+            }
+            break;
         }
     }
 
+    try {
+        ceeper_.file_encrypt(*passwd, file, dest);
+    } catch (exc::AlreadyExists& e) {
+        println("{}", e.what());
+        println("Hint: use -o to provide output file");
+        return 1;
+    }
+
     if (do_remove)
-        std::filesystem::remove(file);
+        fs::remove(file);
 
     return 0;
 }
 
-int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest, bool do_remove)
+int CLI::decrypt_file(const std::string& file, std::optional<std::string> dest, 
+                      bool do_remove, std::optional<fs::path> key_file)
 {
-    if (!std::filesystem::exists(file)) {
+    if (!fs::exists(file)) {
         println("Given input file {} does not exist", file);
         return 1;
     }
 
-    while (true) {
-        auto passwd = getpasswd("Enter decryption passphrase: ");
-    
-        if (!passwd)
-            return 1; 
+    std::optional<std::string> passwd;
+
+    if (key_file) {
+        if (!fs::exists(*key_file)) {
+            println("Given key file {} does not exist", key_file->string());
+            return 1;
+        }
+
+        passwd = readfile(*key_file);
 
         if (passwd->empty()) {
-            println("Passphrase can not be empty!");
-            continue;
-        }        
-
-        try {
-            ceeper_.file_decrypt(*passwd, file, dest);
-            break;
-        } catch (exc::AlreadyExists& e) {
-            println("{}", e.what());
-            println("Hint: use -o to provide output file");
+            println("Key file is empty!");
             return 1;
-        } catch (exc::DecryptionError) {
-            println("Incorrect passphrase!");
-            continue;
+        }
+    } else {
+        while (true) {
+            passwd = getpasswd("Create encryption passphrase: ");
+
+            if (!passwd)
+                return 1; 
+
+            if (passwd->empty()) {
+                println("Passphrase can not be empty!");
+                continue;
+            }
         }
     }
 
+    try {
+        ceeper_.file_decrypt(*passwd, file, dest);
+    } catch (exc::AlreadyExists& e) {
+        println("{}", e.what());
+        println("Hint: use -o to provide output file");
+        return 1;
+    } catch (...) {
+        println("Incorrect passphrase!");
+        return 1;
+    }
+
     if (do_remove)
-        std::filesystem::remove(file);
+        fs::remove(file);
 
     return 0;
 }
@@ -530,16 +587,19 @@ int CLI::handle_args(argparse::ArgumentParser& p)
         return generate_password(p.geti("-l"), p.getb("-nl"), p.getb("-ns"), p.getb("-p"));
 
     if (p.is_used("-e"))
-        return encrypt_file(p.get("-e"), p.present("-o"), p.getb("-i"));
+        return encrypt_file(p.get("-e"), p.present("-o"), p.getb("-i"), p.present("-kf"));
 
     if (p.is_used("-d"))
-        return decrypt_file(p.get("-d"), p.present("-o"), p.getb("-i"));
+        return decrypt_file(p.get("-d"), p.present("-o"), p.getb("-i"), p.present("-kf"));
 
     int rc = 0;
 
-    if (!ceeper_.is_unlocked())
-        if (auth() != 0)
+    if (!ceeper_.is_unlocked()) {
+        if (p.is_used("-kf"))
+            key_file_auth(p.get("-kf"));
+        else if (auth() != 0)
             return 1;
+    }
     
     if (auto* s = p.get_subparser({"add", "a"})) {
         auto tag = s->get("tag");
@@ -637,10 +697,11 @@ int CLI::main(int argc, char** argv)
     p.add_argument("-ns", "--no-symbols") .help("generate a password without any special symbols.").flag();
     p.add_argument("-l",  "--length")     .help("length for newly generated password").nargs(nargs::optional).scan<'i', int>().default_value(16);
 
-    p.add_argument("-e", "--encrypt").metavar("FILE") .help("prompts for password, encrypts given file");
-    p.add_argument("-d", "--decrypt").metavar("FILE") .help("prompts for password, decrypts given file");
-    p.add_argument("-o", "--out").metavar("OUT")      .help("exact out file when using -e/-d");
-    p.add_argument("-i", "--in-place")                .help("after encrypting / decrypting, remove original file").flag();
+    p.add_argument("-e",  "--encrypt").metavar("FILE") .help("prompts for password, encrypts given file using your token");
+    p.add_argument("-d",  "--decrypt").metavar("FILE") .help("prompts for password, decrypts given file using your token");
+    p.add_argument("-o",  "--out").metavar("OUT")      .help("use this out file with -e/-d");
+    p.add_argument("-i",  "--in-place")                .help("after encrypting / decrypting, remove original file").flag();
+    p.add_argument("-kf", "--key-file").metavar("FILE").help("treat contents of this file as passphrase (do not pass too big files)"); 
 
     p.add_argument("--generate-token")    .help("generate a new token").flag();
 
@@ -655,19 +716,22 @@ int CLI::main(int argc, char** argv)
 
     int rc = 0;
 
-    if (argc == 1)
-        rc = interactive_cli(p); // interactive mode
-    else {
-        try {
-            p.parse_args(argc, argv);
-        } catch (argparse::help_exception& e) {
-            println("{}", e.what());
-            return 0;
-        } catch (const std::exception& err) {
-            std::cerr << err.what() << std::endl;
-            return 1;
-        }
+    try {
+        p.parse_args(argc, argv);
+    } catch (argparse::help_exception& e) {
+        println("{}", e.what());
+        return 0;
+    } catch (const std::exception& err) {
+        std::cerr << err.what() << std::endl;
+        return 1;
+    }
 
+    if (argc == 1) {
+        rc = interactive_cli(p);
+    } else if (argc == 3 && p.is_used("-kf")) {
+        key_file_auth(p.get("-kf"));
+        rc = interactive_cli(p);
+    } else {
         rc = handle_args(p);
     }
 
