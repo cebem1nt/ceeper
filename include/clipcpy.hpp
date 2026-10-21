@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstdlib>
 #include <cstdio>
 
 #if defined(_WIN32)

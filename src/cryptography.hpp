@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <array>
+#include <span>
 
 #define FILE_CHUNK_SIZE   64 * 1024
 #define DERIVE_KEY_SIZE   32

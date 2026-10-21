@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <regex>
 #include <vector>
+#include <sstream>
 
 static std::array<uchar, DERIVE_KEY_SIZE> derive_key(
     const std::string& passphrase,
